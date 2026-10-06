@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}No such conversion - {{ app_name }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>That conversion is gone</h2>
+  <p>
+    Job <code>{{ job_id }}</code> is not here any more. Finished downloads are
+    deleted after a while (and a restart forgets them entirely).
+  </p>
+  <p><a class="button" href="{{ url_for('index') }}">Convert a file</a></p>
+</div>
+{% endblock %}

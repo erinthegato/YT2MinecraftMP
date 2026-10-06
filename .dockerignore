@@ -1,0 +1,46 @@
+# Keep the Docker build context small: the image only needs core.py and
+# webapp/ (app, converter, jobs, templates, static).  A leading slash means
+# "at the repository root only", so no pattern can ever touch
+# webapp/templates/ or webapp/static/.
+.git
+.github
+.gitignore
+
+__pycache__/
+**/__pycache__/
+*.py[cod]
+/.venv
+/venv
+
+# the hosted converter's scratch space
+webapp/_data
+
+# user data, game folders and packaging output: nothing here is imported
+/bin
+/cache
+/discs
+/dist
+/_pyi
+/build
+/assets
+/templates
+/manifest.json
+/state.json
+/playlists.json
+*.bak
+*.log
+
+# the desktop half of yt2disc and the test harnesses: never imported here
+/main.py
+/gui.py
+/cli.py
+/player.py
+/build_exe.py
+/yt2disc.spec
+/_e2e
+
+# documentation and deploy files, all useless inside the image
+*.md
+/Procfile
+/Aptfile
+/Dockerfile

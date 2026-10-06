@@ -1,0 +1,9 @@
+# ffmpeg for hosts that install apt packages during the build.
+#
+# Heroku reads this file, but only once the apt buildpack has been added:
+#
+#     heroku buildpacks:add --index 1 heroku-community/apt
+#
+# Render's native Python runtime needs nothing - it already ships ffmpeg - and
+# a Docker build installs it in the Dockerfile instead.
+ffmpeg

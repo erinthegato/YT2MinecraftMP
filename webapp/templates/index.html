@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Convert a file - {{ app_name }}{% endblock %}
+{% block content %}
+
+{% if not ffmpeg %}
+<div class="notice bad">
+  <strong>ffmpeg is not installed on this server</strong>, so nothing can be
+  converted yet. Put <code>ffmpeg</code> in <code>bin/</code>, point
+  <code>YT2DISC_FFMPEG</code> at it, or install it on the host's
+  <code>PATH</code>.
+</div>
+{% endif %}
+
+{% if error %}
+<div class="notice bad"><strong>That did not work:</strong> {{ error }}</div>
+{% endif %}
+
+<form class="card" method="post" action="{{ url_for('start_conversion') }}"
+      enctype="multipart/form-data">
+
+  <h2>1. Pick a file</h2>
+  <p class="hint">
+    Up to {{ max_upload_mb }} MB. Audio such as
+    {{ inputs[:5] | join(', ') }} and video files both work &mdash; from a video
+    the sound is taken and the picture thrown away.
+  </p>
+  <input type="file" name="media" accept="{{ inputs | join(',') }}" required>
+
+  <h2>2. Choose what to make</h2>
+  <div class="grid">
+    <label>Format
+      <select name="format">
+        {% for item in formats %}
+        <option value="{{ item.key }}"
+                {% if values.format == item.key %}selected{% endif %}>
+          {{ item.label }} ({{ item.extension }}){% if item.hint %} &mdash; {{ item.hint }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Quality
+      <select name="bitrate">
+        {% for rate in bitrates %}
+        <option value="{{ rate }}"
+                {% if values.bitrate | string == rate %}selected{% endif %}>{{ rate }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Sample rate
+      <select name="sample_rate">
+        {% for rate in sample_rates %}
+        <option value="{{ rate }}"
+                {% if values.sample_rate | string == rate | string %}selected{% endif %}>
+          {% if rate %}{{ rate }} Hz{% else %}keep the original{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Channels
+      <select name="channels">
+        {% for choice in channels %}
+        <option value="{{ choice }}"
+                {% if values.channels == choice %}selected{% endif %}>{{ choice }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  <p class="hint">Quality applies to the compressed formats only; WAV and FLAC ignore it.</p>
+
+  <h2>3. Cut it down <span class="optional">(optional)</span></h2>
+  <div class="grid">
+    <label>Start
+      <input type="text" name="start" value="{{ values.start }}" placeholder="0:30 or 90">
+    </label>
+    <label>End
+      <input type="text" name="end" value="{{ values.end }}" placeholder="1:45 or 105">
+    </label>
+  </div>
+  <p class="hint">Seconds (<code>90</code>) or <code>mm:ss</code> (<code>1:30</code>). Leave blank for the whole file.</p>
+
+  <label class="check">
+    <input type="checkbox" name="normalize" {% if values.normalize %}checked{% endif %}>
+    Even out the loudness
+  </label>
+  <p class="hint">Worth it for Minecraft, so one track is not far louder than the rest.</p>
+
+  <button type="submit">Convert it</button>
+</form>
+
+{% endblock %}

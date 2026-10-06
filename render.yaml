@@ -1,0 +1,44 @@
+# yt2disc converter - a Render Blueprint, for a converter that stays online.
+#
+# Point Render at this repository and it reads this file: install the two
+# pure-Python dependencies, start the app on the address the platform expects,
+# and watch /healthz.  Render's native Python runtime already ships ffmpeg on
+# PATH, so nothing here has to install it - and /healthz answers 503 when it is
+# missing, so a broken deploy shows up as an unhealthy service instead of a
+# converter that quietly fails for every visitor.
+#
+# The generated token is the point of the last block: a converter on the open
+# internet runs ffmpeg for whoever finds the URL.  Read the key from the
+# service's Environment page and open
+#
+#     https://<service>.onrender.com/?key=<the key>
+#
+# once per browser; after that the key rides along in a cookie and the address
+# bar keeps it out of sight.  /healthz stays open, so the platform's own checks
+# keep working.
+services:
+  - type: web
+    name: yt2disc-converter
+    runtime: python
+    plan: free
+    buildCommand: pip install -r webapp/requirements.txt
+    startCommand: python -m webapp.app
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.0"
+      - key: YT2DISC_WEB_HOST
+        value: "0.0.0.0"
+      - key: YT2DISC_WEB_DATA
+        value: "/tmp/yt2disc"
+      # A free instance has little memory and no disk of its own, so the
+      # limits are deliberately modest: one conversion at a time, and a short
+      # life for a finished download.
+      - key: YT2DISC_WEB_MAX_UPLOAD_MB
+        value: "100"
+      - key: YT2DISC_WEB_SLOTS
+        value: "1"
+      - key: YT2DISC_WEB_KEEP_MINUTES
+        value: "30"
+      - key: YT2DISC_WEB_TOKEN
+        generateValue: true

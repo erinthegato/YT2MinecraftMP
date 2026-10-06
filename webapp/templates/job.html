@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ job.output_name }} - {{ app_name }}{% endblock %}
+{% block content %}
+
+<div class="card" id="job"
+     data-job-id="{{ job.id }}"
+     data-status-url="{{ url_for('job_status', job_id=job.id) }}"
+     data-status="{{ job.status }}">
+
+  <h2>Converting</h2>
+  <p class="status" id="status">{{ job.message }}</p>
+  <div class="bar"><div class="fill" id="fill" style="width: {{ job.percent }}%"></div></div>
+  <p class="hint" id="source">{{ job.source_name }} &rarr; {{ job.output_name }}</p>
+
+  <p id="download" class="{% if not download_url %}hidden{% endif %}">
+    <a class="button" id="download-link" href="{{ download_url or '#' }}">
+      Download {{ job.output_name }}
+    </a>
+  </p>
+
+  <div class="notice bad{% if job.status != 'error' %} hidden{% endif %}" id="error">{{ job.error or '' }}</div>
+
+  <dl class="facts">
+    <dt>Format</dt><dd>{{ job.format }}</dd>
+    <dt>Length</dt><dd id="fact-duration">{{ job.duration_text }}</dd>
+    <dt>Size</dt><dd id="fact-size">{{ job.size_text or '&mdash;' }}</dd>
+  </dl>
+
+  {% if job.log_tail %}
+  <details>
+    <summary>ffmpeg's own words</summary>
+    <pre id="log">{% for line in job.log_tail %}{{ line }}
+{% endfor %}</pre>
+  </details>
+  {% endif %}
+
+  <p class="hint">
+    <a href="{{ url_for('index') }}">&larr; Convert another file</a>
+    &middot; <a href="{{ url_for('job_page', job_id=job.id) }}">refresh</a>
+  </p>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

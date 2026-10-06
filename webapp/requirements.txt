@@ -1,0 +1,8 @@
+# The hosted converter's dependencies.
+#
+# Both are pure Python.  ffmpeg is the only binary involved and it is not a
+# Python package: let the host provide it (the Dockerfile and the Aptfile in
+# the repository root do exactly that), put it in bin/, or point
+# YT2DISC_FFMPEG at it.
+Flask>=3.0,<4
+waitress>=3.0,<4

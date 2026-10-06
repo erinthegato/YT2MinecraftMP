@@ -1,0 +1,15 @@
+# Line endings.
+#
+# yt2disc has two halves that run on two different operating systems: the
+# desktop add-on on Windows, the hosted converter on Debian (Render's native
+# runtimes are Debian 12 "bookworm").  The repository is the one place that has
+# to agree on a single answer, so text is stored as LF and checked out with
+# whatever the platform prefers.
+* text=auto
+
+# Never let Git translate these: a rewritten byte corrupts them.
+*.exe   binary
+*.ico   binary
+*.png   binary
+*.jpg   binary
+*.ogg   binary

@@ -1,0 +1,39 @@
+# yt2disc ignore list
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# user data / build output (everything is regenerated from the manifest)
+build/BP/
+build/RP/
+build/*.mcaddon
+discs/*.ogg
+discs/*.part
+cache/
+manifest.json
+state.json
+*.bak
+
+# bundled helper binaries are downloaded by the user; never commit them
+bin/yt-dlp
+bin/yt-dlp.exe
+bin/ffmpeg
+bin/ffmpeg.exe
+
+# scratch output from the end-to-end test
+_e2e/*.log
+_e2e/*.txt
+
+# the hosted converter: its scratch space, if you point YT2DISC_WEB_DATA here
+webapp/_data/
+
+# local virtualenvs used to run either half
+.venv/
+venv/
+
+# packaging output (py -3 build_exe.py)
+dist/
+_pyi/
+assets/yt2disc.ico
+yt2disc-cmd.log
+

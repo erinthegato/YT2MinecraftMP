@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ app_name }}{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <h1><a href="{{ url_for('index') }}">{{ app_name }}</a></h1>
+  <p class="tagline">A file in, a file out. No player, no account, no library.</p>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+<footer>
+  <p>
+    This half only converts. Playing the music, keeping playlists and quietening
+    Minecraft's own soundtrack is the local add-on's job
+    (<code>player.py</code>, <code>gui.py</code>).
+  </p>
+</footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>

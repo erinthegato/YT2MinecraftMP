@@ -1,0 +1,5 @@
+# Process definition for a host that reads a Procfile (Render, Heroku, Fly).
+#
+# main() already reads $PORT and $YT2DISC_WEB_HOST; only the bind address has
+# to be widened, because the default is 127.0.0.1 for local use.
+web: YT2DISC_WEB_HOST=0.0.0.0 python -m webapp.app

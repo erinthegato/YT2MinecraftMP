@@ -1,0 +1,45 @@
+# UTF-8
+#
+# Windows version resource embedded into both yt2disc executables (Windows
+# Explorer -> right click -> Properties -> Details).  PyInstaller evaluates
+# this file through the ``version=`` argument of EXE().
+#
+# Keep the numbers in sync with the release you are packaging.
+
+VSVersionInfo(
+    ffi=FixedFileInfo(
+        filevers=(1, 0, 0, 0),
+        prodvers=(1, 0, 0, 0),
+        mask=0x3F,
+        flags=0x0,
+        OS=0x40004,  # VOS_NT_WINDOWS32
+        fileType=0x1,  # VFT_APP
+        subtype=0x0,
+        date=(0, 0),
+    ),
+    kids=[
+        StringFileInfo(
+            [
+                StringTable(
+                    "040904B0",  # U.S. English, Unicode
+                    [
+                        StringStruct("CompanyName", "yt2disc"),
+                        StringStruct(
+                            "FileDescription",
+                            "yt2disc - YouTube to Minecraft Bedrock music discs",
+                        ),
+                        StringStruct("FileVersion", "1.0.0.0"),
+                        StringStruct("InternalName", "yt2disc"),
+                        StringStruct(
+                            "LegalCopyright",
+                            "Free to use. Provided as-is, without warranty.",
+                        ),
+                        StringStruct("ProductName", "yt2disc"),
+                        StringStruct("ProductVersion", "1.0.0.0"),
+                    ],
+                )
+            ]
+        ),
+        VarFileInfo([VarStruct("Translation", [1033, 1200])]),
+    ],
+)

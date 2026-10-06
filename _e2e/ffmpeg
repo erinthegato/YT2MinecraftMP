@@ -1,0 +1,9 @@
+#!/bin/sh
+# Stand-in for ffmpeg used by the end-to-end test (see run_e2e.py).
+# The POSIX twin of ffmpeg.cmd: YT2DISC_PYTHON must point at a Python
+# interpreter, and run_e2e.py sets it.
+if [ -z "$YT2DISC_PYTHON" ]; then
+    echo "fake ffmpeg: YT2DISC_PYTHON is not set" >&2
+    exit 2
+fi
+exec "$YT2DISC_PYTHON" "$(dirname "$0")/fake_ffmpeg.py" "$@"

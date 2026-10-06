@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Key needed - {{ app_name }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>This converter is locked</h2>
+  <p>
+    Whoever runs it set a shared key, so it only works for people who have it.
+    Open the link you were given: the key is the part after <code>?key=</code>,
+    and once a browser has used it, it remembers and stops asking.
+  </p>
+  <p class="hint">
+    Nothing is wrong with the file you wanted to convert - this page comes
+    before the form, so no upload was accepted.
+  </p>
+</div>
+{% endblock %}
