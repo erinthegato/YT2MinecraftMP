@@ -12,12 +12,13 @@ Minecraft install. That split is deliberate: converting is the part worth
 offloading to a server (it wants ffmpeg, and it takes a while), while playing
 is local (it needs your speakers, your files and your game).
 
-`converter.py` is that engine. Two front-ends sit on top of it, and neither one
-changes it:
+`converter.py` is that engine. Three front-ends sit on top of it, and none of
+them changes it:
 
 | Front-end | Start it with | Where it belongs |
 | --- | --- | --- |
-| [`app.py`](../app.py) in the repository root, built with Gradio | `py -3 app.py` | the recommended deployment: a free Hugging Face Space whose `README.md` block says `sdk: gradio` |
+| [`index.html`](../index.html) in the repository root, running Gradio Lite | open it from any file server | the recommended deployment: a free Hugging Face **Static** Space, whose `README.md` block says `sdk: static`. No process and no ffmpeg to install - Pyodide and ffmpeg.wasm do the work in the visitor's own tab, through `browser_ffmpeg.py` |
+| [`app.py`](../app.py) in the repository root, built with Gradio | `py -3 app.py` | the same page served by a real Python process over a host-supplied ffmpeg |
 | [`app.py`](app.py) in this folder, built with Flask | `py -3 -m webapp.app` | the phone helper below, Render, a container, or a box you manage yourself |
 
 A converted file arrives as a normal browser download, and the natural place to
@@ -170,13 +171,15 @@ web: YT2DISC_WEB_HOST=0.0.0.0 python -m webapp.app
 
 Whichever host you pick, make sure `ffmpeg` exists in the image - it is not a
 Python package, so the host has to provide it. The app itself does not care
-where ffmpeg came from, only that `ffmpeg` can be run. (The Gradio page at the
-repository root needs none of the rows below: its `packages.txt` is the whole
-answer.)
+where ffmpeg came from, only that `ffmpeg` can be run. (Nothing below applies to
+the repository root's `index.html`: a Static Space installs nothing, and that
+page converts with ffmpeg.wasm in the browser. These rows are for the two server
+front-ends and for this folder's Flask app.)
 
 | Host | What to do |
 | --- | --- |
-| Hugging Face Spaces (Gradio) | nothing to install: the block at the top of `README.md` supplies `sdk: gradio` and `app_file: app.py`, and the root `packages.txt` installs ffmpeg |
+| Hugging Face Spaces (Static) | nothing to install at all: the block at the top of `README.md` supplies `sdk: static` and `app_file: index.html`, and the browser downloads ffmpeg.wasm itself |
+| Hugging Face Spaces (Gradio or Docker) | the root `packages.txt` installs ffmpeg; a Gradio Space reads the root `requirements.txt` as well |
 | Render (native runtime) | nothing for ffmpeg - the Python runtime already ships it on `PATH`; `/healthz` proves it |
 | Heroku | commit the `Aptfile` in the repository root and add the buildpack once: `heroku buildpacks:add --index 1 heroku-community/apt` |
 | Kubernetes, any `docker run` | build the `Dockerfile` in the repository root: it installs ffmpeg, installs `webapp/requirements.txt`, and starts `python -m webapp.app` |
@@ -204,8 +207,10 @@ every visitor.
 
 | File | Job |
 | --- | --- |
-| [`../app.py`](../app.py) | the Gradio page: the same conversion drawn with `gr.Blocks` instead of templates. It calls `converter.py` directly and lets Gradio's queue and progress bar do what `jobs.py` does here |
-| `converter.py` | the ffmpeg work: options, the command line, progress parsing, file naming. No web framework, no globals |
+| [`../index.html`](../index.html) | the Static Space's page and the whole of its server: loads Gradio Lite, fetches the project's Python off the Space, and runs `../app.py` in the browser |
+| [`../app.py`](../app.py) | the Gradio page: the same conversion drawn with `gr.Blocks` instead of templates. It calls `converter.py` directly and lets Gradio's queue and progress bar do what `jobs.py` does here - in a browser and on a server, unchanged |
+| `browser_ffmpeg.py` | the browser's ffmpeg, which is not a program: it drives ffmpeg.wasm and rebinds `core.run_ffmpeg`, `core.probe_duration` and `core.find_binary`, so `converter.py` needs no browser branch at all |
+| `converter.py` | the ffmpeg work: options, the command line, progress parsing, file naming. No web framework, no globals, and no idea whether it is in a browser |
 | `jobs.py` | runs conversions on worker threads, tracks progress, deletes scratch files |
 | `app.py` | the thin Flask layer: the pages, the polling endpoint, the download |
 | `_host.py` | shows this app to a phone: widen the bind, open the firewall, print the address, optional tunnel |
@@ -226,5 +231,9 @@ py -3 webapp/_webcheck.py   # the whole app: upload -> convert -> download
 ```
 
 Each exits non-zero if anything is wrong, so either can be used as a smoke test
-after a change.
+after a change. Neither covers the browser: `browser_ffmpeg.py` needs a browser
+to run in at all, and the page around it does too. What they do cover is the
+engine it borrows, unchanged. For the rest, `py -3 -m http.server 8000` from the
+repository root, one conversion, and the ffmpeg line the page prints is the
+check.
 

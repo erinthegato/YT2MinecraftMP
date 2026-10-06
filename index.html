@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<!--
+  index.html - the Static Space's page, and the whole of its server.
+
+  Hugging Face serves this repository as files and nothing else: there is no
+  process here to run Python, and no ffmpeg for it to start.  So the page brings
+  both with it.  Gradio Lite runs Gradio on Pyodide (Python compiled to
+  WebAssembly), and webapp/browser_ffmpeg.py runs the conversion on ffmpeg.wasm.
+
+  Nothing is uploaded and nothing is queued.  The visitor's own machine does the
+  work, which is also why there is no shared key to set and no scratch folder to
+  sweep: there is no server for either of them to belong to.
+
+  The Python below is the seed, and it is short on purpose.  It fetches the
+  project's *real* files off the Space - app.py, core.py, webapp/converter.py,
+  webapp/browser_ffmpeg.py - so there is one copy of each in this repository and
+  no build step between them and this page.  Everything after the fetch is the
+  same app the local player's converter has always been.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>yt2disc converter</title>
+  <!-- Gradio Lite: Gradio itself, running on Pyodide. -->
+  <script type="module" crossorigin
+          src="https://cdn.jsdelivr.net/npm/@gradio/lite/dist/lite.js"></script>
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/@gradio/lite/dist/lite.css" />
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; font: 16px/1.5 system-ui, -apple-system, sans-serif; }
+    .banner { padding: 1rem 1.25rem; border-bottom: 1px solid rgba(128,128,128,.35); }
+    .banner h1 { margin: 0; font-size: 1.15rem; }
+    .banner p { margin: .35rem 0 0; max-width: 60ch; font-size: .9rem; opacity: .78; }
+  </style>
+</head>
+<body>
+  <header class="banner">
+    <h1>🎵 yt2disc converter</h1>
+    <p>
+      A file goes in, a file comes out. Everything happens in this tab: Gradio
+      runs on Pyodide and the conversion runs on ffmpeg.wasm, so nothing is
+      uploaded anywhere. The first visit downloads both &mdash; about 30&nbsp;MB
+      and a few seconds &mdash; and the browser caches them after that.
+    </p>
+  </header>
+
+  <noscript>This page needs JavaScript: both Python and ffmpeg are compiled to
+  WebAssembly and run in the browser.</noscript>
+
+  <gradio-lite>
+<gradio-file name="bootstrap.py" entrypoint>
+# The Static Space has no server to run this file, so this is all of it: fetch
+# the project's own Python off the Space, put it where sys.path can see it, hand
+# ffmpeg over to WebAssembly, and then run the real app.py unchanged.
+import re
+import sys
+from pathlib import Path
+
+import js
+from pyodide.http import pyfetch
+
+SOURCES = ("app.py", "core.py", "webapp/converter.py", "webapp/browser_ffmpeg.py")
+ROOT = Path("/yt2disc")
+
+
+def space_url():
+    """This Space's own address, so a fetch cannot miss the files.
+
+    Python runs in a worker here, so `location` is the *worker's* - usually a
+    blob: URL - and a bare relative fetch would resolve against that rather than
+    against the page.  The origin inside it is the part worth keeping, and an
+    empty answer just leaves the URLs relative, which is right when the worker
+    is served straight from the Space.
+    """
+    href = str(getattr(js.location, "href", "") or "")
+    found = re.match(r"(?:blob:)?(https?://[^/]+)", href)
+    return found.group(1) if found else ""
+
+
+base = space_url()
+(ROOT / "webapp").mkdir(parents=True, exist_ok=True)
+
+for name in SOURCES:
+    url = f"{base}/{name}" if base else name
+    response = await pyfetch(url)
+    if not response.ok:
+        raise RuntimeError(f"could not fetch {url}: HTTP {response.status}")
+    (ROOT / name).write_text(await response.string(), encoding="utf-8")
+
+sys.path[:0] = [str(ROOT), str(ROOT / "webapp")]
+
+import browser_ffmpeg
+
+browser_ffmpeg.prepare()
+await browser_ffmpeg.install()
+
+import app
+
+app.build_demo().launch()
+</gradio-file>
+  </gradio-lite>
+</body>
+</html>

@@ -1,9 +1,11 @@
-# System packages, installed with apt before the app starts.
+# System packages, installed with apt before a Gradio-SDK or Docker Space starts.
 #
-# ffmpeg is the one binary yt2disc needs and it is not a Python package, so the
-# host has to provide it.  A Hugging Face Space running the Gradio SDK (the
-# `sdk: gradio` block at the top of README.md) installs whatever this file
-# lists, which is why no Dockerfile is involved in the deployment any more.
+# The deployment at the top of README.md is a *Static* Space, and a Static Space
+# installs nothing at all: it serves index.html, and the browser downloads its
+# own ffmpeg (ffmpeg.wasm) when someone converts something.  So this file is not
+# part of that deployment.  It is here for the hosts that do install things -
+# `sdk: gradio`, `sdk: docker`, and any box running `python app.py`, where
+# ffmpeg has to exist before a conversion can.
 #
 # core.find_binary() looks on PATH first outside Windows, which is exactly where
 # apt puts this copy - so nothing has to point at it.

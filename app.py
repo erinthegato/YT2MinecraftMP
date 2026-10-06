@@ -15,13 +15,18 @@ of the form around it.
     python app.py --host 0.0.0.0 --port 7860
     python app.py --key none            # ignore YT2DISC_WEB_TOKEN for this run
 
-On Hugging Face Spaces the block at the top of ``README.md`` is what starts it
-(``sdk: gradio`` with ``app_file: app.py``), and ``packages.txt`` beside this
-file is what puts ffmpeg in the image.  There is no Dockerfile in that
-deployment any more, which is the whole reason a Space needs no billing account
-and no card.
+On Hugging Face Spaces the block at the top of ``README.md`` is what starts it.
+It asks for ``sdk: static`` with ``app_file: index.html``: the Space hands the
+browser ``index.html``, and Gradio Lite runs *this* file in the visitor's own
+tab, on Pyodide, with ``webapp/browser_ffmpeg.py`` standing in for the ffmpeg
+binary.  That deployment uploads nothing anywhere, installs nothing (a Static
+Space cannot), and so needs no billing account and no card.
+``requirements.txt`` and ``packages.txt`` beside this file are for the hosts
+that *do* install things - the ``python app.py`` run below, and the Flask
+front-end's Dockerfile.
 
-Environment variables, all optional:
+Environment variables, all optional.  Every one of them describes the *server*
+run above; a browser has no environment to set and needs none of it:
 
     GRADIO_SERVER_PORT / PORT   port to listen on (default 7860)
     GRADIO_SERVER_NAME / YT2DISC_WEB_HOST
@@ -56,6 +61,7 @@ for _entry in (str(ROOT), str(WEBAPP)):
 
 import gradio as gr  # noqa: E402  (after the sys.path fix above)
 
+import browser_ffmpeg  # noqa: E402
 import core  # noqa: E402
 import converter  # noqa: E402
 
@@ -145,7 +151,13 @@ def credentials():
 
 
 def server_note() -> str:
-    """The line at the top of the page: did ffmpeg actually make it here?"""
+    """The line at the top of the page: where is the ffmpeg that does the work?"""
+    if browser_ffmpeg.IS_BROWSER and browser_ffmpeg.ready():
+        return (
+            "**ffmpeg: in this browser.**  The conversion runs in your own tab, "
+            "on WebAssembly, so your file is never uploaded - and the first "
+            "visit downloads ffmpeg once (about 30 MB)."
+        )
     ffmpeg = core.find_binary("ffmpeg")
     if ffmpeg is None:
         return (
