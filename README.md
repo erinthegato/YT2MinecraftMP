@@ -150,4 +150,7 @@ py -3 webapp/_webcheck.py           # the whole web app: upload -> convert -> do
 ```
 
 Each exits non-zero if anything is wrong, so either works as a smoke test after
-a change.
+a change. `app.py` drives the same engine, so `_selftest.py` covers the half of
+the Gradio page that can fail on its own; `_webcheck.py` covers the Flask
+front-end instead, because the page does not use it. For the page itself,
+`py -3 app.py` and one conversion is the check.
