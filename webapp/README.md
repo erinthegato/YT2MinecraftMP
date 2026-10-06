@@ -1,4 +1,4 @@
-# yt2disc converter (the hosted half)
+# yt2minecraftdisc converter (the hosted half)
 
 The other half of yt2disc is the **local add-on**: `player.py`, `gui.py` and
 `cli.py` play the music, keep the playlists and quieten Minecraft's own

@@ -65,7 +65,7 @@ import browser_ffmpeg  # noqa: E402
 import core  # noqa: E402
 import converter  # noqa: E402
 
-APP_NAME = "yt2disc converter"
+APP_NAME = "yt2minecraftdisc converter"
 MEGABYTE = 1024 * 1024
 # How much of ffmpeg's chatter the log box keeps.
 LOG_LINES = 40
@@ -88,7 +88,7 @@ def scratch_root() -> Path:
     """The folder conversions are made in, and the one :func:`sweep` empties."""
     root = Path(
         os.environ.get("YT2DISC_WEB_DATA")
-        or Path(tempfile.gettempdir()) / "yt2disc-web"
+        or Path(tempfile.gettempdir()) / "yt2minecraftdisc-web"
     )
     root.mkdir(parents=True, exist_ok=True)
     return root

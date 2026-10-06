@@ -1,5 +1,5 @@
 ---
-title: yt2disc converter
+title: yt2minecraftdisc converter
 emoji: 🎵
 colorFrom: green
 colorTo: blue

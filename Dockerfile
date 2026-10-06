@@ -1,4 +1,4 @@
-# yt2disc converter - the hosted half, as a container image.
+# yt2minecraftdisc converter - the hosted half, as a container image.
 #
 # Only needed by hosts that build an image (Kubernetes, any `docker run`), or by
 # anyone who would rather run the Flask front-end in a container than on the

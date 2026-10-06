@@ -46,7 +46,7 @@ import converter  # noqa: E402
 import core  # noqa: E402
 from jobs import JobRegistry  # noqa: E402
 
-APP_NAME = "yt2disc converter"
+APP_NAME = "yt2minecraftdisc converter"
 MEGABYTE = 1024 * 1024
 
 
