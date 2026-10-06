@@ -20,6 +20,10 @@ services:
   - type: web
     name: yt2disc-converter
     runtime: python
+    # free is 0.1 CPU and 512 MB, and a free instance sleeps after about 15
+    # idle minutes: the first visit of the day waits roughly a minute for it
+    # to wake, and a long track takes its time to encode.  starter is 0.5 CPU
+    # on the same 512 MB, and is the whole upgrade if that gets annoying.
     plan: free
     buildCommand: pip install -r webapp/requirements.txt
     startCommand: python -m webapp.app
