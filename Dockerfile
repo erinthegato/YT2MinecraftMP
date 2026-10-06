@@ -1,12 +1,16 @@
 # yt2disc converter - the hosted half, as a container image.
 #
-# Only needed by hosts that build an image (Fly.io, Kubernetes, any
-# `docker run`).  A Procfile host can provide ffmpeg itself and skip this file:
-# Render's native Python runtime already ships ffmpeg, and Heroku reads the
-# Aptfile in the repository root.
+# Only needed by hosts that build an image (Kubernetes, any `docker run`), or by
+# anyone who would rather run the Flask front-end in a container than on the
+# host.  A Procfile host can provide ffmpeg itself and skip this file: Render's
+# native Python runtime already ships ffmpeg, and Heroku reads the Aptfile in the
+# repository root.
 #
 # The point of this image is one thing: put ffmpeg on PATH, which is exactly
-# where core.find_binary() looks first outside Windows.
+# where core.find_binary() looks first outside Windows.  The Hugging Face Space
+# this repository is set up for runs the Gradio page instead - `sdk: gradio` and
+# `app_file: app.py` in the block at the top of README.md, with ffmpeg from
+# packages.txt - so that deployment never builds this image at all.
 FROM python:3.13-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 \
@@ -34,8 +38,10 @@ COPY core.py ./
 COPY webapp/ webapp/
 
 # The converter only ever writes scratch files, so it does not need to own the
-# code: mount a volume over the scratch folder if the host has one.
-RUN useradd --create-home --uid 10001 yt2disc
+# code: mount a volume over the scratch folder if the host has one.  The uid is
+# 1000 because a Hugging Face Space runs its container as that user, and
+# matching it keeps $HOME writable there; Docker and Kubernetes do not mind.
+RUN useradd --create-home --uid 1000 yt2disc
 USER yt2disc
 
 EXPOSE 8000

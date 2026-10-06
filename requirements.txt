@@ -1,0 +1,13 @@
+# What the hosted converter installs before it starts.
+#
+# The converter itself is nearly pure Python: the only import it needs is
+# Gradio, which draws the upload form, the progress bar and the download link.
+# ffmpeg does all the real work and is not a Python package at all, so it comes
+# from packages.txt beside this file instead.
+#
+# A Hugging Face Space reads this file (its Gradio SDK installs whatever is
+# listed here) and local use reads it too:
+#
+#     py -3 -m pip install -r requirements.txt
+#     py -3 app.py                       # http://127.0.0.1:7860
+gradio>=5.0,<6

@@ -1,4 +1,4 @@
-# Process definition for a host that reads a Procfile (Render, Heroku, Fly).
+# Process definition for a host that reads a Procfile (Render, Heroku).
 #
 # main() already reads $PORT and $YT2DISC_WEB_HOST; only the bind address has
 # to be widened, because the default is 127.0.0.1 for local use.

@@ -2,8 +2,8 @@
 
 The other half of yt2disc is the **local add-on**: `player.py`, `gui.py` and
 `cli.py` play the music, keep the playlists and quieten Minecraft's own
-soundtrack. This folder is the part that can live on the web, and it does
-exactly one thing:
+soundtrack. This folder holds the engine of the part that lives on the web, and
+it does exactly one thing:
 
 > take a file, turn it into another file, hand it back.
 
@@ -11,6 +11,14 @@ There is no player here, no library, no account, and nothing that reads a
 Minecraft install. That split is deliberate: converting is the part worth
 offloading to a server (it wants ffmpeg, and it takes a while), while playing
 is local (it needs your speakers, your files and your game).
+
+`converter.py` is that engine. Two front-ends sit on top of it, and neither one
+changes it:
+
+| Front-end | Start it with | Where it belongs |
+| --- | --- | --- |
+| [`app.py`](../app.py) in the repository root, built with Gradio | `py -3 app.py` | the recommended deployment: a free Hugging Face Space whose `README.md` block says `sdk: gradio` |
+| [`app.py`](app.py) in this folder, built with Flask | `py -3 -m webapp.app` | the phone helper below, Render, a container, or a box you manage yourself |
 
 A converted file arrives as a normal browser download, and the natural place to
 put it is `discs/` next to the player - the player already treats that folder
@@ -90,13 +98,19 @@ handed back as a broken file.
 
 ## Environment variables
 
+The Gradio page at the repository root reads the same names, plus the two that
+Gradio itself uses for the address: `GRADIO_SERVER_PORT` (default `7860`) and
+`GRADIO_SERVER_NAME`. `YT2DISC_WEB_SLOTS` is the one exception - Gradio's own
+queue allows one conversion at a time, so the page ignores it.
+
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `PORT` | `8000` | port for `python -m webapp.app` |
+| `PORT` | `8000` (Gradio: `7860`) | port to listen on |
+| `GRADIO_SERVER_PORT` / `GRADIO_SERVER_NAME` | unset | the same two, under the names a Space sets for us |
 | `YT2DISC_WEB_HOST` | `127.0.0.1` | bind address; use `0.0.0.0` on a host |
 | `YT2DISC_WEB_DATA` | the system temp folder | where uploads and results are written |
-| `YT2DISC_WEB_MAX_UPLOAD_MB` | `200` | upload ceiling; above it you get a 413 page |
-| `YT2DISC_WEB_SLOTS` | `2` | conversions allowed to run at the same time |
+| `YT2DISC_WEB_MAX_UPLOAD_MB` | `200` | upload ceiling; above it the file is refused with a reason |
+| `YT2DISC_WEB_SLOTS` | `2` | conversions allowed to run at the same time (Flask front-end only) |
 | `YT2DISC_WEB_KEEP_MINUTES` | `120` | how long a finished download stays available |
 | `YT2DISC_FFMPEG` | unset | path to the ffmpeg binary |
 | `YT2DISC_WEB_TOKEN` | unset | shared key every visitor must give; unset means wide open |
@@ -106,16 +120,47 @@ used here: this half never reads a library or a Minecraft folder.
 
 ## Deploying
 
-`render.yaml` in the repository root is a Render Blueprint: connect the
-repository, and it installs `webapp/requirements.txt`, starts
-`python -m webapp.app`, points the health check at `/healthz`, and generates a
-`YT2DISC_WEB_TOKEN` so the deployed converter is not open to everyone who finds
-the URL. Read the key from the service's Environment page and visit
-`https://<service>.onrender.com/?key=<key>` once.
+The free host this repository is set up for is
+[Hugging Face Spaces](https://huggingface.co/docs/hub/spaces-sdks-gradio), and it
+runs the **Gradio** page at the repository root rather than the Flask server in
+this folder. Create a Space with the **Gradio** SDK, add it as a second remote
+of this repository, and push:
 
-The generated key is base64, so it can contain `+`, `/` and `=`. Paste it
-exactly as the dashboard shows it: `?key=a+b` and `?key=a%2Bb` are both
-understood, because a bare `+` in a query string otherwise means a space.
+```powershell
+git remote add space https://huggingface.co/spaces/<user>/yt2disc-converter
+git push --force space HEAD:main
+```
+
+What Hugging Face reads is the YAML block at the top of the repository's
+`README.md`: `sdk: gradio` with `app_file: app.py` starts that page, the root
+`requirements.txt` is what it imports, and the root `packages.txt` is where
+ffmpeg comes from. Nothing is built - not locally, not on the host - which is
+why the free CPU tier is enough. `YT2DISC_WEB_TOKEN` goes in the Space's
+*Settings -> Variables and secrets* rather than in a file, and the address to
+open is `https://<user>-yt2disc-converter.hf.space/`. Gradio asks for that key
+as HTTP basic auth, so it never reaches the address bar.
+
+Free Spaces sleep after 48 idle hours and wake on the next visit. A conversion
+is unaffected, because the page holds its connection open while ffmpeg runs and
+that connection is traffic.
+
+### Deploying *this* Flask server instead
+
+Everything below is about the Flask front-end in this folder. It drives the same
+engine, so it converts identically, and it brings the two things the Gradio page
+does not: a `/healthz` endpoint a platform can poll, and a `?key=` lock that
+works without a browser prompt.
+
+`render.yaml` in the repository root is the same deployment on Render, whose
+free instance type is 0.1 CPU and 512 MB and sleeps after about 15 idle minutes.
+Connect the repository and the Blueprint installs `webapp/requirements.txt`,
+starts `python -m webapp.app`, points the health check at `/healthz`, and
+generates the same `YT2DISC_WEB_TOKEN`; read the key from the service's
+Environment page and visit `https://<service>.onrender.com/?key=<key>` once.
+
+A generated key is base64, so it can contain `+`, `/` and `=`. Paste it exactly
+as the dashboard shows it: `?key=a+b` and `?key=a%2Bb` are both understood,
+because a bare `+` in a query string otherwise means a space.
 
 `webapp/Procfile` holds the line a Procfile host needs:
 
@@ -123,16 +168,17 @@ understood, because a bare `+` in a query string otherwise means a space.
 web: YT2DISC_WEB_HOST=0.0.0.0 python -m webapp.app
 ```
 
-On Render/Fly/Heroku, point the service at this repository and make sure ffmpeg
-exists in the image - it is not a Python package, so the host has to provide it.
-Pick whichever line matches the host; the app itself does not care where ffmpeg
-came from, only that `ffmpeg` can be run:
+Whichever host you pick, make sure `ffmpeg` exists in the image - it is not a
+Python package, so the host has to provide it. The app itself does not care
+where ffmpeg came from, only that `ffmpeg` can be run. (The Gradio page at the
+repository root needs none of the rows below: its `packages.txt` is the whole
+answer.)
 
 | Host | What to do |
 | --- | --- |
-| Render (native runtime) | nothing - the Python runtime already ships `ffmpeg` on `PATH`; `/healthz` proves it |
+| Hugging Face Spaces (Gradio) | nothing to install: the block at the top of `README.md` supplies `sdk: gradio` and `app_file: app.py`, and the root `packages.txt` installs ffmpeg |
+| Render (native runtime) | nothing for ffmpeg - the Python runtime already ships it on `PATH`; `/healthz` proves it |
 | Heroku | commit the `Aptfile` in the repository root and add the buildpack once: `heroku buildpacks:add --index 1 heroku-community/apt` |
-| Fly.io | commit `fly.toml` in the repository root and run `fly deploy`: it builds the `Dockerfile` (ffmpeg included) and keeps one Machine permanently awake, so a conversion on a background thread is never interrupted |
 | Kubernetes, any `docker run` | build the `Dockerfile` in the repository root: it installs ffmpeg, installs `webapp/requirements.txt`, and starts `python -m webapp.app` |
 | a box you manage yourself | `sudo apt install ffmpeg`, drop a static build into `bin/`, or set `YT2DISC_FFMPEG` |
 
@@ -158,6 +204,7 @@ every visitor.
 
 | File | Job |
 | --- | --- |
+| [`../app.py`](../app.py) | the Gradio page: the same conversion drawn with `gr.Blocks` instead of templates. It calls `converter.py` directly and lets Gradio's queue and progress bar do what `jobs.py` does here |
 | `converter.py` | the ffmpeg work: options, the command line, progress parsing, file naming. No web framework, no globals |
 | `jobs.py` | runs conversions on worker threads, tracks progress, deletes scratch files |
 | `app.py` | the thin Flask layer: the pages, the polling endpoint, the download |
