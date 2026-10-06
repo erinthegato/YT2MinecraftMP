@@ -27,6 +27,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 import core  # noqa: E402  (import after the sys.path fix above)
+import packs  # noqa: E402  (the Bedrock addon builder, beside this file)
 
 # --------------------------------------------------------------------------
 # What we accept, and what we produce
@@ -102,6 +103,19 @@ OUTPUT_FORMATS: dict[str, dict] = {
         "lossy": False,
         "args": ["-c:a", "flac"],
         "hint": "Lossless archive copy.",
+    },
+    # Not a codec but a *deliverable*: the audio is encoded as Ogg (so it keeps
+    # the Vorbis arguments above) and then wrapped, with a behavior pack, into
+    # an addon the game can load.  "pack" is the flag that tells convert() the
+    # zip is the answer and the Ogg is only a step on the way.
+    "pack": {
+        "label": "Minecraft music player",
+        "extension": ".mcaddon",
+        "mime": "application/zip",
+        "lossy": True,
+        "args": ["-c:a", "libvorbis", "-b:a", "{bitrate}"],
+        "hint": "In-game player: run /yt2disc:music to open the menu.",
+        "pack": True,
     },
 }
 DEFAULT_FORMAT = "ogg"
@@ -212,6 +226,7 @@ def normalize_options(raw) -> dict:
         "extension": spec["extension"],
         "mime": spec["mime"],
         "lossy": spec["lossy"],
+        "pack": bool(spec.get("pack")),
         "bitrate": bitrate,
         "sample_rate": _as_int(raw.get("sample_rate"), SAMPLE_RATES, 0),
         "channels": channels,
@@ -237,6 +252,17 @@ def progress_seconds(line) -> float | None:
 def format_choices() -> list[dict]:
     """The output formats, in a shape a template can loop over."""
     return [{"key": key, **spec} for key, spec in OUTPUT_FORMATS.items()]
+
+
+def is_pack(options) -> bool:
+    """True when the output is the in-game addon, not a bare audio file.
+
+    The addon is a zip of Oggs, so ``convert`` still runs ffmpeg - only the
+    last step differs.  Keeping the choice in the one output table is what lets
+    every front-end offer it without a branch of its own.
+    """
+    spec = OUTPUT_FORMATS.get(str((options or {}).get("format")))
+    return bool(spec and spec.get("pack"))
 
 
 def safe_stem(name) -> str:
@@ -331,10 +357,14 @@ def check_trim(full, options) -> None:
         )
 
 
-def convert(source, destination, options, log=None, progress=None, ffmpeg=None) -> Path:
+def convert(
+    source, destination, options, log=None, progress=None, ffmpeg=None, title=None
+) -> Path:
     """Convert one file.  Failures quote ffmpeg's own last words.
 
     ``log`` receives every ffmpeg line; ``progress`` receives a 0-100 float.
+    ``title`` names the song inside a pack, for a caller whose source file was
+    saved under a scratch name of its own (a server does exactly that).
     """
     source = Path(str(source))
     destination = Path(str(destination))
@@ -352,9 +382,17 @@ def convert(source, destination, options, log=None, progress=None, ffmpeg=None) 
     total = reported_total(full, options)
 
     destination.parent.mkdir(parents=True, exist_ok=True)
+    # An addon is a zip of Ogg files, so ffmpeg writes the audio first and the
+    # pack is built around it afterwards - ffmpeg has no .mcaddon muxer, and
+    # would refuse the extension.  Otherwise the audio *is* the answer and lands
+    # straight at ``destination``.
+    pack = is_pack(options)
+    audio = (
+        destination.with_name(destination.stem + ".ogg") if pack else destination
+    )
     # Same trick as core.prepare_playable: the part file keeps the real suffix,
     # because ffmpeg picks its muxer from the extension alone.
-    tmp = destination.with_name(destination.stem + ".part" + destination.suffix)
+    tmp = audio.with_name(audio.stem + ".part" + audio.suffix)
 
     def on_line(line):
         if log:
@@ -382,7 +420,28 @@ def convert(source, destination, options, log=None, progress=None, ffmpeg=None) 
         detail = "\n".join(tail[-10:]) or "ffmpeg did not say why"
         raise core.YT2DiscError(f"ffmpeg could not convert '{source.name}':\n{detail}")
 
-    os.replace(tmp, destination)
+    os.replace(tmp, audio)
+
+    if pack:
+        # The slug - which is also the sound id - comes from the download's own
+        # name, so two cuts of one song stay distinct entries instead of
+        # colliding.  The title is what the menu shows: the name the song was
+        # uploaded under, which is not always the source file's name, because a
+        # server saves an upload to a bland scratch name of its own.
+        song = Path(str(title or source.name)).stem.strip() or audio.stem
+        packs.build_addon(
+            destination,
+            [
+                {
+                    "slug": safe_stem(destination.stem),
+                    "name": song,
+                    "audio": audio,
+                    "duration": total,
+                }
+            ],
+            log=log,
+        )
+
     if progress:
         progress(100.0)
     if log:

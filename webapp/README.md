@@ -86,8 +86,9 @@ added and the LAN address is still unreachable.
 
 | Choice | Notes |
 | --- | --- |
-| Format | Ogg Vorbis (the default - what Minecraft resource packs read), Opus, MP3, AAC/m4a, WAV, FLAC |
+| Format | Ogg Vorbis (the default - what Minecraft resource packs read), Opus, MP3, AAC/m4a, WAV, FLAC, or the in-game addon below |
 | Quality | 96k - 320k; silently ignored by WAV and FLAC, which cannot use it |
+| Minecraft music player | not a codec: the audio is written as Ogg and then wrapped, with a small behavior pack, into an `.mcaddon`. Add it to Minecraft, turn the resource and behavior packs on for a world, and `/yt2disc:music` opens a menu of the songs |
 | Sample rate | keep the original, or 22050 / 44100 / 48000 Hz |
 | Channels | keep, mono, or stereo |
 | Trim | start and end, as seconds (`90`) or `mm:ss` (`1:30`) |
@@ -211,6 +212,7 @@ every visitor.
 | [`../app.py`](../app.py) | the Gradio page: the same conversion drawn with `gr.Blocks` instead of templates. It calls `converter.py` directly and lets Gradio's queue and progress bar do what `jobs.py` does here - in a browser and on a server, unchanged |
 | `browser_ffmpeg.py` | the browser's ffmpeg, which is not a program: it drives ffmpeg.wasm and rebinds `core.run_ffmpeg`, `core.probe_duration` and `core.find_binary`, so `converter.py` needs no browser branch at all |
 | `converter.py` | the ffmpeg work: options, the command line, progress parsing, file naming. No web framework, no globals, and no idea whether it is in a browser |
+| `packs.py` | the in-game addon: two manifests, `sound_definitions.json`, the menu script, and a pack icon drawn with `zlib` alone. Standard library only, because it also has to run on Pyodide |
 | `jobs.py` | runs conversions on worker threads, tracks progress, deletes scratch files |
 | `app.py` | the thin Flask layer: the pages, the polling endpoint, the download |
 | `_host.py` | shows this app to a phone: widen the bind, open the firewall, print the address, optional tunnel |

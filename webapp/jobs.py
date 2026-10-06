@@ -152,6 +152,9 @@ class JobRegistry:
                     job.options,
                     log=job.log_tail.append,
                     progress=self._reporter(job),
+                    # The upload was saved under a scratch name, so the real
+                    # one is handed over for a pack to name its song with.
+                    title=job.source_name,
                 )
             self._describe(job)
         except core.YT2DiscError as exc:
@@ -197,7 +200,15 @@ class JobRegistry:
         """Note what was produced.  The status is set later, on purpose."""
         job.size = job.output_path.stat().st_size
         job.size_text = core.human_size(job.size)
-        job.duration = core.probe_duration(job.output_path)
+        # An addon is a zip, and ffmpeg cannot read a length out of one - so its
+        # length is taken from the audio it was built from, which is still here
+        # (the upload is only deleted once the job is finished).
+        readable = (
+            job.source_path
+            if converter.is_pack(job.options) and job.source_path
+            else job.output_path
+        )
+        job.duration = core.probe_duration(readable)
         job.duration_text = core.fmt_duration(job.duration) if job.duration else "--:--"
 
     # ---- housekeeping ----------------------------------------------------

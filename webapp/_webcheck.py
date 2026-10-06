@@ -31,9 +31,16 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-for _entry in (HERE, ROOT):
-    if str(_entry) not in sys.path:
-        sys.path.insert(0, str(_entry))
+# Each entry is moved to the front, so the *last* one wins - here that is this
+# folder, so that ``from app import create_app`` finds the Flask ``app.py``
+# beside us and not the Gradio ``app.py`` in the repository root.  Python has
+# already put this folder on ``sys.path`` as the script's own directory, so a
+# plain "insert if missing" would leave it sitting *after* the root.
+for _entry in (ROOT, HERE):
+    value = str(_entry)
+    while value in sys.path:
+        sys.path.remove(value)
+    sys.path.insert(0, value)
 
 import core  # noqa: E402
 from app import create_app  # noqa: E402

@@ -9,7 +9,7 @@ The result lands in ``dist/yt2disc/``:
 
     yt2disc.exe        windowed GUI - double-click it
     yt2disc-cli.exe    console build for scripts and batch files
-    bin/  discs/  build/   drop yt-dlp + ffmpeg into bin/, discs come out here
+    bin/  discs/       drop yt-dlp + ffmpeg into bin/, converted discs go in discs/
     README.md
 
 Every build is validated by ``_e2e/run_e2e.py --exe`` (fake yt-dlp/ffmpeg
@@ -55,20 +55,24 @@ def ensure_pyinstaller() -> bool:
 
 
 def make_icon() -> bool:
-    """Render ``assets/yt2disc.ico`` (all the usual sizes) from disc artwork."""
+    """Render ``assets/yt2disc.ico`` (all the usual sizes) from the pack icon."""
     try:
         from PIL import Image
     except ImportError:
         log("Pillow not installed - keeping the default icon (pip install pillow).")
         return False
 
-    import core  # the drawing helper lives there
+    # The one icon-drawing routine lives beside the addon builder, and it is
+    # pure standard library (it also draws the pack icons in the browser), so
+    # reuse it here instead of keeping a second copy of the artwork.
+    webapp = HERE / "webapp"
+    if str(webapp) not in sys.path:
+        sys.path.insert(0, str(webapp))
+    import packs  # the icon is drawn where the rest of the pack is
 
     ASSETS.mkdir(parents=True, exist_ok=True)
     source = ASSETS / "_icon_256.png"
-    if not core._make_pack_icon(source, "yt2disc", size=256):
-        log("could not draw the icon - keeping the default.")
-        return False
+    source.write_bytes(packs.pack_icon(256))
     try:
         with Image.open(source) as image:
             image.save(
@@ -138,7 +142,7 @@ def clean_dist() -> None:
 
 
 def assemble() -> None:
-    """Add the portable skeleton (bin/, discs/, build/, README) next to the exe."""
+    """Add the portable skeleton (bin/, discs/, README) next to the exe."""
     # A one-file build drops the executables straight into dist/, a one-folder
     # build into dist/yt2disc/ - keep the shipped layout identical either way.
     for exe in (GUI_EXE, CLI_EXE):
@@ -147,7 +151,7 @@ def assemble() -> None:
             exe.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(loose), str(exe))
     APP.mkdir(parents=True, exist_ok=True)
-    for folder in ("bin", "discs", "build"):
+    for folder in ("bin", "discs"):
         (APP / folder).mkdir(exist_ok=True)
     helper = HERE / "bin" / "README.txt"
     if helper.is_file():
@@ -155,8 +159,9 @@ def assemble() -> None:
     readme = HERE / "README.md"
     if readme.is_file():
         shutil.copy2(readme, APP / "README.md")
-    for stale in ("manifest.json", "state.json"):
-        (APP / stale).unlink(missing_ok=True)
+    # A state.json copied over from an earlier build must not decide this run's
+    # library, so start the packaged copy clean.
+    (APP / "state.json").unlink(missing_ok=True)
 
 
 def smoke_test() -> bool:
@@ -201,15 +206,14 @@ def report() -> None:
     for exe in (GUI_EXE, CLI_EXE):
         if exe.is_file():
             log(f"  {exe.name:<18} {exe.stat().st_size:>10,} bytes")
-    log("  bin/  discs/  build/   <-- portable data folders")
+    log("  bin/  discs/        <-- portable data folders")
     log("")
     log("next steps")
     log("  1. drop yt-dlp.exe and ffmpeg.exe into dist/yt2disc/bin/")
     log("  2. run dist/yt2disc/yt2disc.exe  (GUI)  or")
     log("     dist/yt2disc/yt2disc-cli.exe search \"lofi hip hop\"")
-    log("  3. the finished pack appears in dist/yt2disc/build/YTDiscs.mcaddon")
-    log("  4. dist/yt2disc/yt2disc-cli.exe install   copies both packs into Minecraft")
-    log("  5. dist/yt2disc/yt2disc-cli.exe apply     switches them on for a world")
+    log("  3. to make an in-game music player instead, convert with the web")
+    log("     front-end (index.html or app.py) and pick 'Minecraft music player'")
     log("")
 
 

@@ -13,8 +13,9 @@
 
   The Python below is the seed, and it is short on purpose.  It fetches the
   project's *real* files off the Space - app.py, core.py, webapp/converter.py,
-  webapp/browser_ffmpeg.py - so there is one copy of each in this repository and
-  no build step between them and this page.  Everything after the fetch is the
+  webapp/browser_ffmpeg.py, webapp/packs.py - so there is one copy of each in
+  this repository and no build step between them and this page.  Everything
+  after the fetch is the
   same app the local player's converter has always been.
 -->
 <html lang="en">
@@ -61,7 +62,13 @@ from pathlib import Path
 import js
 from pyodide.http import pyfetch
 
-SOURCES = ("app.py", "core.py", "webapp/converter.py", "webapp/browser_ffmpeg.py")
+SOURCES = (
+    "app.py",
+    "core.py",
+    "webapp/converter.py",
+    "webapp/browser_ffmpeg.py",
+    "webapp/packs.py",
+)
 ROOT = Path("/yt2disc")
 
 

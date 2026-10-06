@@ -64,6 +64,14 @@ A converted file arrives as a normal browser download, and the natural place to
 put it is `discs/` next to the player - the player already treats that folder
 as part of your library, so it shows up in the playlist picker on its own.
 
+Pick **Minecraft music player** instead and the download is not a bare audio
+file but an addon (`.mcaddon`): a resource pack carrying the song, and a small
+behavior pack that draws the player.  Open it to add both packs to Minecraft,
+turn them on for a world, and run `/yt2disc:music` to pick a song.  The way in
+is a custom command, which - like the form API it opens - is stable, so the
+world needs no experiment switched on and works offline; `/scriptevent
+yt2disc:menu` opens the same menu on a game too old for custom commands.
+
 ## Deploy the converter
 
 Hugging Face Spaces is the completely free home for the converter: a Space needs

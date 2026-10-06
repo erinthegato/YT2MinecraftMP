@@ -1,0 +1,40 @@
+# yt2disc .vercelignore
+#
+# Only the browser page is deployed: index.html plus the four Python files it
+# fetches from the same origin (app.py, core.py, webapp/converter.py,
+# webapp/browser_ffmpeg.py).  The "web" service in vercel.json serves the whole
+# repository root, so everything here that is *not* part of that page is left
+# out of the upload.
+#
+# Vercel falls back to .gitignore when this file is absent; listing the same
+# paths here keeps the upload small and predictable either way.  bin/ffmpeg.exe
+# alone is about 100 MB, and discs/ is the listener's own music, so neither
+# belongs in a deployment.  A leading slash means "at the repository root only",
+# so no pattern can ever touch webapp/converter.py or webapp/browser_ffmpeg.py.
+
+# version control + local virtualenvs
+.git
+.venv
+venv
+
+# Python bytecode (both halves import the same files)
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# bundled helper binaries, downloaded by the user rather than committed
+/bin
+
+# the listener's own data, caches and build output
+/cache
+/discs
+/dist
+/_pyi
+/_e2e
+
+# the hosted converter's scratch space, if YT2DISC_WEB_DATA points here
+/webapp/_data
+
+# local scratch
+*.bak
+*.log

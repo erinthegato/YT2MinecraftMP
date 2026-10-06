@@ -27,10 +27,10 @@ VERSION_FILE = os.path.join(ROOT, "assets", "version_info.txt")
 if not os.path.isfile(VERSION_FILE):
     VERSION_FILE = None
 
-# The JSON templates and the two fallback PNGs are the only files the app reads
-# from its own bundle.  Everything else (bin/, discs/, build/, *.json) lives
-# next to the executable, so the folder stays portable and writable.
-datas = [(os.path.join(ROOT, "templates"), "templates")]
+# The app reads nothing from its own bundle: bin/, discs/ and the JSON state all
+# live next to the executable, so the folder stays portable and writable, and
+# there is no data folder left to ship inside it.
+datas = []
 
 # gui is imported lazily inside main(), so ask for these explicitly.
 hidden = ["cli", "core", "gui"]

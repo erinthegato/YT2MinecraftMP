@@ -1139,11 +1139,12 @@ def check_frozen():
     check("exe: the GUI binary is windowed", _pe_subsystem(GUI_EXE) == 2, _pe_subsystem(GUI_EXE))
     check("exe: the CLI binary is a console app", _pe_subsystem(CLI_EXE) == 3, _pe_subsystem(CLI_EXE))
     check("exe: the version resource is embedded", "ProductName".encode("utf-16-le") in gui_bytes)
-    check("exe: no leftover template folder is shipped", not (EXE_DIR / "templates").is_dir())
-    check(
-        "exe: no disc build output is shipped",
-        not (EXE_DIR / "build").exists() and not (EXE_DIR / "discs").exists(),
-    )
+    # An older design shipped a templates/ folder (and wrote packs into a build/
+    # folder); neither belongs in the portable build any more.  discs/ does: it
+    # is the library folder the player reads.
+    check("exe: no leftover template folder is shipped", not (EXE_DIR / "templates").exists())
+    check("exe: no disc build output is shipped", not (EXE_DIR / "build").exists())
+    check("exe: the discs library folder is shipped", (EXE_DIR / "discs").is_dir())
 
     proc = run("--version")
     check(

@@ -3,14 +3,10 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 
-# user data / build output (everything is regenerated from the manifest)
-build/BP/
-build/RP/
-build/*.mcaddon
+# user data (playlists.json, state.json, the cache and the discs library)
 discs/*.ogg
 discs/*.part
 cache/
-manifest.json
 state.json
 *.bak
 

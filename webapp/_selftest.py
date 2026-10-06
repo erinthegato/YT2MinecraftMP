@@ -11,15 +11,18 @@ doubles as a smoke test.  Needs ffmpeg (bin/ffmpeg.exe is found for you).
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import converter  # noqa: E402
 import core  # noqa: E402
+import packs  # noqa: E402
 
 FAILURES: list[str] = []
 
@@ -113,6 +116,16 @@ def main() -> int:
           converter.output_name("x.wav", converter.normalize_options({"start": "0.5"})),
           "x-from0.5s.ogg")
 
+    pack_opts = converter.normalize_options({"format": "pack", "bitrate": "128k"})
+    check("the pack choice is flagged", pack_opts["pack"], True)
+    check("the pack extension", pack_opts["extension"], ".mcaddon")
+    check("is_pack(pack)", converter.is_pack(pack_opts), True)
+    check("is_pack(ogg)", converter.is_pack(defaults), False)
+    check("the pack is offered in the choices",
+          "pack" in [item["key"] for item in converter.format_choices()], True)
+    check("pack output_name", converter.output_name("My Song.mp3", pack_opts),
+          "my_song.mcaddon")
+
     print("== ffmpeg ==")
     ffmpeg = core.find_binary("ffmpeg")
     if ffmpeg is None:
@@ -155,6 +168,58 @@ def main() -> int:
             lambda: converter.convert(work / "ghost.mp3", work / "x.ogg", defaults),
             core.InputError,
         )
+
+        # The in-game addon: the same tone, wrapped as a loadable pack.
+        bundle = converter.convert(source, work / "tone.mcaddon", pack_opts)
+        check("pack output exists", bundle.is_file() and bundle.stat().st_size > 0, True)
+        rp, bp = "yt2disc_music_player_RP", "yt2disc_music_player_BP"
+        with zipfile.ZipFile(bundle) as archive:
+            names = set(archive.namelist())
+            corrupt = archive.testzip()
+            rp_manifest = json.loads(archive.read(f"{rp}/manifest.json"))
+            bp_manifest = json.loads(archive.read(f"{bp}/manifest.json"))
+            definitions = json.loads(
+                archive.read(f"{rp}/sounds/sound_definitions.json")
+            )
+            inner = archive.read(f"{rp}/sounds/tone.ogg")
+            main_js = archive.read(f"{bp}/scripts/main.js").decode("utf-8")
+            tracks_js = archive.read(f"{bp}/scripts/tracks.js").decode("utf-8")
+            icon = archive.read(f"{rp}/pack_icon.png")
+        check("pack zip has no corrupt member", corrupt, None)
+        check("pack carries a resource pack", f"{rp}/manifest.json" in names, True)
+        check("pack carries a behavior pack", f"{bp}/manifest.json" in names, True)
+        check("pack RP module is resources",
+              rp_manifest["modules"][0]["type"], "resources")
+        check("pack BP modules", [m["type"] for m in bp_manifest["modules"]],
+              ["data", "script"])
+        check("pack BP depends on server-ui",
+              any(d["module_name"] == "@minecraft/server-ui"
+                  for d in bp_manifest["dependencies"]), True)
+        check("one sound definition", list(definitions["sound_definitions"]),
+              ["yt2disc.tone"])
+        check("the sound points at the ogg",
+              definitions["sound_definitions"]["yt2disc.tone"]["sounds"][0]["name"],
+              "sounds/tone")
+        check("the audio inside is an ogg", inner[:4], b"OggS")
+
+        # The way in is a stable custom command, not a chat keyword - no
+        # experiment, no server.
+        check("the script registers a custom command",
+              "customCommandRegistry.registerCommand" in main_js, True)
+        check("the command is the namespaced one",
+              f'"{packs.COMMAND_NAME}"' in main_js, True)
+        check("the command is open to any player",
+              "CommandPermissionLevel.Any" in main_js, True)
+        check("the command needs no cheats",
+              "cheatsRequired: false" in main_js, True)
+        check("the chat keyword is gone", "chatSend" in main_js, False)
+        check("the scriptevent fallback remains",
+              "scriptEventReceive" in main_js, True)
+        check("the track list is the data the script imports",
+              f'id: "{packs.NAMESPACE}.tone"' in tracks_js, True)
+        check("the pack icon is a png",
+              icon[:8], b"\x89PNG\r\n\x1a\n")
+        check("the icon is what the builder draws", icon, packs.pack_icon())
 
     return report()
 

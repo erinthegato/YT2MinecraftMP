@@ -64,6 +64,7 @@ import gradio as gr  # noqa: E402  (after the sys.path fix above)
 import browser_ffmpeg  # noqa: E402
 import core  # noqa: E402
 import converter  # noqa: E402
+import packs  # noqa: E402
 
 APP_NAME = "yt2minecraftdisc converter"
 MEGABYTE = 1024 * 1024
@@ -245,7 +246,10 @@ def convert_upload(
         progress(0.0, desc="converting")
         converter.convert(source, destination, options, log=note, progress=report)
 
-        duration = core.probe_duration(destination)
+        # A pack's download is a zip, and ffmpeg cannot read a length back out
+        # of one - so its length is taken from the audio it was built from,
+        # while the upload is still in hand.
+        duration = core.probe_duration(source if options.get("pack") else destination)
         made = destination.stat().st_size
         note(f"wrote: {destination.name} ({core.human_size(made)})")
 
@@ -262,8 +266,16 @@ def convert_upload(
             f"| format | {options['format']}{rate} |\n"
             f"| length | {core.fmt_duration(duration) if duration else '--:--'} |\n"
             f"| size | {core.human_size(made)} |\n\n"
-            "Put it in the `discs/` folder next to the player and it shows up in "
-            "the playlist picker on its own."
+            + (
+                "Open the `.mcaddon` to add it to Minecraft, then turn the "
+                "**resource pack and behavior pack** on for your world.  Run "
+                f"`/{packs.COMMAND_NAME}` to open the player "
+                f"(`/scriptevent {packs.MENU_SCRIPT_EVENT}` works too, on a game "
+                "old enough to predate custom commands)."
+                if options.get("pack")
+                else "Put it in the `discs/` folder next to the player and it "
+                "shows up in the playlist picker on its own."
+            )
         )
         return str(destination), status, tail()
 
