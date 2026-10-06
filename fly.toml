@@ -1,0 +1,69 @@
+# yt2disc converter - a Fly.io app, for a converter that stays online.
+#
+# `fly deploy` reads this file next to the Dockerfile: it builds the image
+# (which is where ffmpeg comes from) on Fly's own builder, then runs
+# `python -m webapp.app` behind Fly's proxy.  Only the deploy needs your PC;
+# after that the converter lives on a Fly Machine and the browser tab is
+# optional - the progress page polls /api/jobs/<id> and takes its result from
+# the server.
+#
+# The app name has to be unique across all of Fly.io.  If `yt2disc-converter`
+# is already taken, create another (`fly apps create <name>`) and change it
+# here, or override the file for one deploy with `fly deploy -a <name>`.
+
+app = "yt2disc-converter"
+
+# Where new Machines are created.  Pick the region closest to you (and to
+# whoever else uses the converter) from `fly platform regions`; changing this
+# one line is how the whole app moves.
+primary_region = "sin"
+
+[build]
+  # The Dockerfile in this repository root: it puts ffmpeg on PATH, installs
+  # webapp/requirements.txt, and starts the app.  Fly builds it remotely, so no
+  # local Docker is needed (`fly deploy --remote-only` is the same thing).
+  dockerfile = "Dockerfile"
+
+[env]
+  # The image already sets these; repeating them here is what makes the
+  # deployment self-documenting, and lets you retune without a rebuild.
+  YT2DISC_WEB_HOST = "0.0.0.0"
+  YT2DISC_WEB_DATA = "/tmp/yt2disc"
+  # A small Machine with only its own scratch disk: one conversion at a time, a
+  # modest upload ceiling, and a short life for a finished download.  Raise
+  # YT2DISC_WEB_SLOTS only after giving the Machine more CPU.
+  YT2DISC_WEB_MAX_UPLOAD_MB = "100"
+  YT2DISC_WEB_SLOTS = "1"
+  YT2DISC_WEB_KEEP_MINUTES = "30"
+  # YT2DISC_WEB_TOKEN is deliberately *not* here: it is a secret, so it belongs
+  # in `fly secrets set YT2DISC_WEB_TOKEN=...`.  Set it and the converter asks
+  # every visitor for the key; leave it unset and the URL is open to anyone.
+
+[http_service]
+  # Must match the port `python -m webapp.app` reads from PORT (the image's
+  # default is 8000).  Fly's proxy terminates public 80/443 and forwards here.
+  internal_port = 8000
+  force_https = true
+  # A conversion runs on a background thread *after* the upload request has
+  # already returned, so the Machine must not fall asleep in the middle of one.
+  # Keeping one Machine always running does that, and also means the first
+  # visitor of the day never waits for a cold start.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  # /healthz answers 503 until ffmpeg is runnable, so a broken image shows up
+  # here instead of failing quietly for every visitor.
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  # ffmpeg is the only heavy process.  One shared CPU is enough for a single
+  # audio conversion, and 512 MB has room for Python, waitress and ffmpeg at
+  # once.  Ask for more of both before raising YT2DISC_WEB_SLOTS.
+  size = "shared-cpu-1x"
+  memory = "512mb"

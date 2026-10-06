@@ -132,7 +132,8 @@ came from, only that `ffmpeg` can be run:
 | --- | --- |
 | Render (native runtime) | nothing - the Python runtime already ships `ffmpeg` on `PATH`; `/healthz` proves it |
 | Heroku | commit the `Aptfile` in the repository root and add the buildpack once: `heroku buildpacks:add --index 1 heroku-community/apt` |
-| Fly.io, Kubernetes, any `docker run` | build the `Dockerfile` in the repository root: it installs ffmpeg, installs `webapp/requirements.txt`, and starts `python -m webapp.app` |
+| Fly.io | commit `fly.toml` in the repository root and run `fly deploy`: it builds the `Dockerfile` (ffmpeg included) and keeps one Machine permanently awake, so a conversion on a background thread is never interrupted |
+| Kubernetes, any `docker run` | build the `Dockerfile` in the repository root: it installs ffmpeg, installs `webapp/requirements.txt`, and starts `python -m webapp.app` |
 | a box you manage yourself | `sudo apt install ffmpeg`, drop a static build into `bin/`, or set `YT2DISC_FFMPEG` |
 
 With Docker:

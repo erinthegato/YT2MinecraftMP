@@ -67,6 +67,33 @@ checks keep working. The generated key is base64, so it may contain `+`, `/`
 and `=` - paste it exactly as the dashboard shows it, since a bare `+` in a
 query string is read both ways (`?key=a+b` and `?key=a%2Bb` both work).
 
+[`fly.toml`](fly.toml) is the same deployment on Fly.io, where the image is the
+whole point: `fly deploy` builds the `Dockerfile` in this root, so ffmpeg
+arrives without a buildpack, and the config keeps one Machine always awake
+(`min_machines_running = 1`) so a conversion running on a background thread is
+never cut off by the Machine falling asleep.
+
+```powershell
+fly auth login
+fly apps create yt2disc-converter      # must be unique across all of Fly.io
+fly secrets set YT2DISC_WEB_TOKEN=<a long random string>
+fly deploy
+```
+
+The name in `fly.toml` has to be unique across Fly.io; if it is taken, create a
+different app and change that one line. The token is optional, exactly as
+above: skip the `fly secrets` step and the converter is open to anyone who finds
+the URL. `/healthz` is the proof that ffmpeg made it into the image:
+
+```
+https://<app>.fly.dev/healthz    ->  {"ok": true, "ffmpeg": "/usr/bin/ffmpeg"}
+```
+
+Fly asks for a payment method, and one small Machine kept permanently on is
+about $3.69 a month in its cheapest regions rather than Render's free tier -
+that, and a builder that runs remotely instead of a local Docker, is the whole
+difference between the two files.
+
 ffmpeg is the only binary involved and it is not a Python package, so the host
 has to provide it. Render's native runtimes already ship it on `PATH`, which is
 why the Blueprint installs nothing; `Dockerfile` and `Aptfile` in this root
