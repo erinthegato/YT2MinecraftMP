@@ -113,6 +113,10 @@ repository, and it installs `webapp/requirements.txt`, starts
 the URL. Read the key from the service's Environment page and visit
 `https://<service>.onrender.com/?key=<key>` once.
 
+The generated key is base64, so it can contain `+`, `/` and `=`. Paste it
+exactly as the dashboard shows it: `?key=a+b` and `?key=a%2Bb` are both
+understood, because a bare `+` in a query string otherwise means a space.
+
 `webapp/Procfile` holds the line a Procfile host needs:
 
 ```

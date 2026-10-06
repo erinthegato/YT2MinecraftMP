@@ -63,7 +63,9 @@ https://<service>.onrender.com/?key=<the key>
 
 once per browser. The key is then kept in a cookie, and the address bar is
 cleaned of it. `/healthz` and the stylesheet stay open, so the platform's own
-checks keep working.
+checks keep working. The generated key is base64, so it may contain `+`, `/`
+and `=` - paste it exactly as the dashboard shows it, since a bare `+` in a
+query string is read both ways (`?key=a+b` and `?key=a%2Bb` both work).
 
 ffmpeg is the only binary involved and it is not a Python package, so the host
 has to provide it. Render's native runtimes already ship it on `PATH`, which is

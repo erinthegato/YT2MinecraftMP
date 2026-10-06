@@ -25,6 +25,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -248,13 +249,20 @@ def check_real_server() -> None:
             process.kill()
 
 
-def check_access_key(scratch) -> None:
+def check_access_key(scratch, key="a-test-key") -> None:
     """A key, when one is set, locks the pages but never the health check.
 
     Built as an app of its own so the unlocked one stays untouched: the key is
     read when ``create_app`` runs, not when this module is imported.
+
+    Called twice, because the two keys are not the same shape of string.  The
+    second is drawn from the base64 alphabet a host generates, and ``+`` means
+    *space* in a query string - so a literal ``?key=a+b`` and an encoded
+    ``?key=a%2Bb`` have to end up meaning the same key, or half the keys any
+    host could hand a deployment would 401 the one visitor they were handed to.
     """
-    os.environ["YT2DISC_WEB_TOKEN"] = "a-test-key"
+    where = f"key={key!r}"
+    os.environ["YT2DISC_WEB_TOKEN"] = key
     try:
         locked = create_app(
             JobRegistry(root=Path(scratch), slots=1, keep_seconds=600)
@@ -263,16 +271,31 @@ def check_access_key(scratch) -> None:
         os.environ.pop("YT2DISC_WEB_TOKEN", None)
 
     client = locked.test_client()
-    check("a locked /healthz still answers 200",
+    check(f"a locked /healthz still answers 200 - {where}",
           client.get("/healthz").status_code, 200)
-    check("a locked / asks for the key", client.get("/").status_code, 401)
-    check("the wrong key is refused", client.get("/?key=no").status_code, 401)
-    handed_over = client.get("/?key=a-test-key")
-    check("the right key is accepted", handed_over.status_code, 303)
-    check("and taken back out of the address bar",
+    check(f"a locked / asks for the key - {where}",
+          client.get("/").status_code, 401)
+    check(f"the wrong key is refused - {where}",
+          client.get("/?key=no").status_code, 401)
+    check(f"a locked /api is not readable - {where}",
+          client.get("/api/jobs/nope").status_code, 401)
+
+    # A fresh client per spelling, on purpose: the first accepted key leaves a
+    # cookie behind, and the cookie is checked before the query string - so a
+    # shared client would answer from the cookie and never test the URL at all.
+    literal = locked.test_client()
+    handed_over = literal.get(f"/?key={key}")
+    check(f"the right key is accepted - {where}", handed_over.status_code, 303)
+    check(f"and taken back out of the address bar - {where}",
           handed_over.headers.get("Location"), "/")
-    check("the cookie it left is enough after that",
-          client.get("/").status_code, 200)
+    check(f"the cookie it left is enough after that - {where}",
+          literal.get("/").status_code, 200)
+
+    encoded = locked.test_client().get(
+        f"/?key={urllib.parse.quote(key, safe='')}"
+    )
+    check(f"and the percent-encoded spelling works too - {where}",
+          encoded.status_code, 303)
 
 
 def main() -> int:
@@ -290,6 +313,7 @@ def main() -> int:
     check_conversion(client, scratch, core.find_binary("ffmpeg"))
     check_refusals(client)
     check_access_key(scratch)
+    check_access_key(scratch, key="Ab+cd/ef=gH")
 
     print("== the app, on a real port ==")
     check_real_server()

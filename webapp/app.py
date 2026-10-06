@@ -115,6 +115,22 @@ def create_app(registry: JobRegistry | None = None) -> Flask:
                 candidate.encode("utf-8"), key.encode("utf-8")
             )
 
+        def raw_key_argument() -> str | None:
+            """``key`` from the query string, still exactly as it was sent.
+
+            ``request.args`` has already turned every ``+`` into a space by the
+            time it can be read, and a generated key is base64 - which carries
+            a ``+`` about as often as not.  Reading the raw string as well is
+            what makes the literal ``?key=a+b`` work exactly like the
+            percent-encoded ``?key=a%2Bb``, instead of quietly answering 401 to
+            half the keys a host could have generated.
+            """
+            for field in request.query_string.decode("latin-1").split("&"):
+                name, _, value = field.partition("=")
+                if name == "key":
+                    return value
+            return None
+
         @app.before_request
         def require_key():
             """Everything but the health check asks for the key - once.
@@ -128,7 +144,9 @@ def create_app(registry: JobRegistry | None = None) -> Flask:
                 return None
             if carries_key(request.cookies.get(cookie)):
                 return None
-            if carries_key(request.args.get("key")):
+            if carries_key(request.args.get("key")) or carries_key(
+                raw_key_argument()
+            ):
                 # Remember it, then take it back out of the address bar: a key
                 # in a URL survives in history, screenshots and the next
                 # person's typing.  A GET is redirected; a POST carries on.
