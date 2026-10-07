@@ -100,7 +100,11 @@ page brings both. `index.html` loads Gradio Lite, which runs Gradio itself in th
 browser on [Pyodide](https://pyodide.org), and
 [`webapp/browser_ffmpeg.py`](webapp/browser_ffmpeg.py) runs the conversion on
 [ffmpeg.wasm](https://ffmpegwasm.netlify.app) - the same FFmpeg compiled to
-WebAssembly, libvorbis and libopus included. The page fetches `app.py`, `core.py`
+WebAssembly, libvorbis and libopus included. The Gradio Lite build is pinned on
+purpose: the last npm release installs a Gradio that Pyodide can no longer finish
+installing, and the comment beside the `<script>` and `<link>` tags in
+`index.html` records the error, why it happens, and where the rebuilt copy lives.
+The page fetches `app.py`, `core.py`
 and `webapp/*.py` off the Space as it loads, so those files are the whole
 deployment: no build step, no image, and neither `packages.txt` nor
 `requirements.txt` involved.

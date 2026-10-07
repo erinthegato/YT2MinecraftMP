@@ -23,11 +23,27 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>yt2minecraftdisc converter</title>
-  <!-- Gradio Lite: Gradio itself, running on Pyodide. -->
+  <!--
+    Gradio Lite: Gradio itself, running on Pyodide.
+
+    Deliberately *not* the npm package.  The last release there - @gradio/lite
+    5.45.0, which an unpinned jsDelivr URL resolves to - ships a Gradio whose
+    requirements pin huggingface-hub below 1.0 while the runtime beside it has
+    already installed 1.1.x, and micropip refuses the contradiction:
+
+        ValueError: Can't find a pure Python 3 wheel for:
+                    'huggingface-hub<1.0,>=0.33.5'
+
+    Gradio is no longer maintaining Lite, so that release will never be fixed.
+    The team rebuilt it once with the two versions reconciled and left the build
+    at the address below (gradio-app/gradio#12262); both files below are that
+    build, 5.45.0 unchanged except for the pin.  Loading *it* is what keeps this
+    page to a single copy of each dependency, with nothing left to argue about.
+  -->
   <script type="module" crossorigin
-          src="https://cdn.jsdelivr.net/npm/@gradio/lite/dist/lite.js"></script>
+          src="https://gradio-lite-previews.s3.amazonaws.com/PINNED_HF_HUB/dist/lite.js"></script>
   <link rel="stylesheet"
-        href="https://cdn.jsdelivr.net/npm/@gradio/lite/dist/lite.css" />
+        href="https://gradio-lite-previews.s3.amazonaws.com/PINNED_HF_HUB/dist/lite.css" />
   <style>
     :root { color-scheme: light dark; }
     body { margin: 0; font: 16px/1.5 system-ui, -apple-system, sans-serif; }
