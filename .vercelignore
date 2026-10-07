@@ -2,9 +2,9 @@
 #
 # Only the browser page is deployed: index.html plus the four Python files it
 # fetches from the same origin (app.py, core.py, webapp/converter.py,
-# webapp/browser_ffmpeg.py).  The "web" service in vercel.json serves the whole
-# repository root, so everything here that is *not* part of that page is left
-# out of the upload.
+# webapp/browser_ffmpeg.py).  This is a static site -- Vercel serves the whole
+# repository root as-is, so everything here that is *not* part of that page is
+# left out of the upload.
 #
 # Vercel falls back to .gitignore when this file is absent; listing the same
 # paths here keeps the upload small and predictable either way.  bin/ffmpeg.exe
