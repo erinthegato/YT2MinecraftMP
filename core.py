@@ -36,6 +36,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
@@ -938,14 +939,45 @@ def _ffmpeg() -> Path:
     return path
 
 
-def _stream_subprocess(cmd, log=None, progress=None, tail_size: int = 40):
+def _fmt_timeout(seconds: float) -> str:
+    """``1800`` -> ``"30 min"``; anything under a minute stays in seconds."""
+    seconds = float(seconds)
+    if seconds < 60:
+        return f"{seconds:g}s"
+    return f"{seconds / 60.0:g} min"
+
+
+def _kill(proc) -> None:
+    """Stop a child that has run past its deadline, ignoring the races."""
+    try:
+        proc.kill()
+    except OSError:  # pragma: no cover - it exited between the check and here
+        pass
+    try:
+        proc.wait(timeout=10)
+    except (subprocess.SubprocessError, OSError):  # pragma: no cover - defensive
+        pass
+
+
+def _stream_subprocess(
+    cmd, log=None, progress=None, tail_size: int = 40, timeout: float | None = None
+):
     """Run a command, streaming stdout lines into log()/progress().
 
     Returns ``(returncode, tail_lines)`` so callers can report the cause of a
     failure without dumping the whole decoder log.
+
+    ``timeout`` is a wall-clock ceiling in seconds.  ffmpeg has no opinion about
+    how long is too long, so a stuck decode - or a file that is hours of audio -
+    would otherwise hold a worker slot until somebody killed it by hand.  When
+    the deadline passes the child is killed and a :class:`YT2DiscError` says so.
+    ``None``, the default, means no limit, which is what the desktop player
+    wants.  (The deadline is checked on each line of output, and every conversion
+    runs ffmpeg with ``-progress pipe:1``, so output arrives steadily.)
     """
     if log:
         log("$ " + " ".join(str(part) for part in cmd))
+    deadline = None if not timeout else time.monotonic() + float(timeout)
     tail: list[str] = []
     try:
         proc = subprocess.Popen(
@@ -974,28 +1006,53 @@ def _stream_subprocess(cmd, log=None, progress=None, tail_size: int = 40):
             progress(percent)
         if log:
             log(line)
+        if deadline is not None and time.monotonic() > deadline:
+            _kill(proc)
+            raise YT2DiscError(
+                f"ffmpeg did not finish within {_fmt_timeout(timeout)} and was stopped"
+            )
     return proc.wait(), tail
 
 
-def run_ffmpeg(cmd, log=None, progress=None, tail_size: int = 40):
+def run_ffmpeg(cmd, log=None, progress=None, tail_size: int = 40, timeout=None):
     """Run an ffmpeg command, streaming its output lines (public wrapper).
 
     Returns ``(returncode, tail_lines)``.  The hosted converter needs exactly
     the behaviour the player relies on - run it, watch it, and keep the last
     few lines so a failure can quote ffmpeg instead of guessing - so this is
     exposed by name rather than by reaching for the underscore-prefixed helper.
+    ``timeout`` is forwarded to :func:`_stream_subprocess`: a wall-clock ceiling
+    for a conversion that must not be allowed to run forever.
     """
-    return _stream_subprocess(cmd, log=log, progress=progress, tail_size=tail_size)
+    return _stream_subprocess(
+        cmd, log=log, progress=progress, tail_size=tail_size, timeout=timeout
+    )
 
 
-def probe_duration(path, ffmpeg=None) -> float | None:
-    """Read a media duration straight out of ffmpeg's banner (no ffprobe)."""
+def probe_duration(path, ffmpeg=None, strict: bool = False) -> float | None:
+    """Read a media duration straight out of ffmpeg's banner (no ffprobe).
+
+    The banner is a *best effort* on purpose: most callers only want a number to
+    show, so a file ffmpeg cannot measure yields ``None`` and nothing else
+    happens.  ``strict=True`` flips that for a caller who cannot continue
+    without the number - the hosted converter, whose progress bar and trim
+    checks both need the length - and turns every "no answer" into an
+    :class:`InputError` naming the file, so a job fails with a reason instead of
+    quietly reporting an empty length.
+    """
+    probe = Path(str(path))
+    if not probe.is_file():
+        if strict:
+            raise InputError(f"'{probe.name}' is not a file we can read")
+        return None
     ffmpeg = ffmpeg or find_binary("ffmpeg")
     if ffmpeg is None:
+        if strict:
+            raise BinaryMissingError("ffmpeg")
         return None
     try:
         proc = subprocess.run(
-            [str(ffmpeg), "-hide_banner", "-i", str(path)],
+            [str(ffmpeg), "-hide_banner", "-i", str(probe)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -1004,10 +1061,23 @@ def probe_duration(path, ffmpeg=None) -> float | None:
             timeout=60,
             **_quiet_flags(),
         )
-    except (subprocess.SubprocessError, OSError):
+    except subprocess.TimeoutExpired as exc:
+        if strict:
+            raise InputError(
+                f"ffmpeg took longer than a minute to read '{probe.name}'"
+            ) from exc
+        return None
+    except (subprocess.SubprocessError, OSError) as exc:
+        if strict:
+            raise InputError(f"could not read '{probe.name}': {exc}") from exc
         return None
     match = _DURATION_RE.search(proc.stderr or "")
     if not match:
+        if strict:
+            raise InputError(
+                f"could not read the length of '{probe.name}' - it may be "
+                f"damaged, or hold no audio"
+            )
         return None
     hours, minutes, seconds = match.groups()
     return int(hours) * 3600 + int(minutes) * 60 + float(seconds)

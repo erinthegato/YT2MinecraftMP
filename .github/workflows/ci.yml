@@ -1,0 +1,47 @@
+name: checks
+
+# Run the project's own smoke tests on every push and pull request.  They are
+# the same two commands the README tells a person to run, so CI and a human
+# check exactly the same things - and both exit non-zero on failure, which is
+# what makes them usable here.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The runner's own python3 is used rather than actions/setup-python, so
+      # the one system package that matters - Tk, which the end-to-end test
+      # imports to stand up the desktop window - is definitely the interpreter
+      # the tests run on.  ffmpeg is the engine's only external dependency.
+      - name: Install ffmpeg and Tk
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg python3-tk
+
+      # A conversion test is only meaningful if ffmpeg is really there, so ask
+      # it directly and fail right here instead of deep inside a conversion.
+      - name: Pin the ffmpeg check
+        run: |
+          set -eu
+          ffmpeg -version | head -n 1
+          ffmpeg -version | head -n 1 | grep -q '^ffmpeg version' \
+            || { echo "ffmpeg is missing or unrecognisable"; exit 1; }
+
+      # The engine: a real ffmpeg conversion, a trim, the in-game pack, and the
+      # pack/regression checks.
+      - name: Engine smoke test
+        run: python3 webapp/_selftest.py
+
+      # The end-to-end test drives the fake ffmpeg shims, which are shell
+      # scripts on this platform - make sure they can run.
+      - name: Make the fake helpers executable
+        run: chmod +x _e2e/ffmpeg
+
+      # Playlists, playback (dry run), the Minecraft soundtrack and the desktop
+      # window, all against throw-away folders.
+      - name: End-to-end check
+        run: python3 _e2e/run_e2e.py

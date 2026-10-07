@@ -11,6 +11,7 @@ doubles as a smoke test.  Needs ffmpeg (bin/ffmpeg.exe is found for you).
 
 from __future__ import annotations
 
+import io
 import json
 import subprocess
 import sys
@@ -22,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import converter  # noqa: E402
 import core  # noqa: E402
+import jobs  # noqa: E402
 import packs  # noqa: E402
 
 FAILURES: list[str] = []
@@ -172,7 +174,7 @@ def main() -> int:
         # The in-game addon: the same tone, wrapped as a loadable pack.
         bundle = converter.convert(source, work / "tone.mcaddon", pack_opts)
         check("pack output exists", bundle.is_file() and bundle.stat().st_size > 0, True)
-        rp, bp = "yt2disc_music_player_RP", "yt2disc_music_player_BP"
+        rp, bp = packs.pack_folder_names()
         with zipfile.ZipFile(bundle) as archive:
             names = set(archive.namelist())
             corrupt = archive.testzip()
@@ -220,6 +222,105 @@ def main() -> int:
         check("the pack icon is a png",
               icon[:8], b"\x89PNG\r\n\x1a\n")
         check("the icon is what the builder draws", icon, packs.pack_icon())
+
+        # ---- pack regression ------------------------------------------
+        # The game keys a pack by its UUID, so the *same* pack built twice has
+        # to carry the same UUIDs - otherwise an update installs beside the old
+        # pack instead of over it.  These assertions are what keep the manifests
+        # deterministic from one run to the next.
+        first = packs.resource_manifest(packs.DEFAULT_PACK_NAME, "d")
+        again = packs.resource_manifest(packs.DEFAULT_PACK_NAME, "d")
+        check("the resource manifest is reproducible", first, again)
+        check("its header and module use different uuids",
+              first["header"]["uuid"] != first["modules"][0]["uuid"], True)
+        check("the behavior manifest is reproducible",
+              packs.behavior_manifest(packs.DEFAULT_PACK_NAME, "d"),
+              packs.behavior_manifest(packs.DEFAULT_PACK_NAME, "d"))
+
+        # Build the very same addon twice, and compare what landed in the zips.
+        def build(name, song):
+            return packs.build_addon(
+                work / name,
+                [{"slug": "tone", "name": song, "audio": source, "duration": 3.0}],
+            )
+
+        one = build("one.mcaddon", "My Song")
+        two = build("two.mcaddon", "My Song")
+        with zipfile.ZipFile(one) as a, zipfile.ZipFile(two) as b:
+            rp_a = json.loads(a.read(f"{rp}/manifest.json"))
+            rp_b = json.loads(b.read(f"{rp}/manifest.json"))
+            bp_a = json.loads(a.read(f"{bp}/manifest.json"))
+            bp_b = json.loads(b.read(f"{bp}/manifest.json"))
+            songs = a.read(f"{bp}/scripts/tracks.js").decode("utf-8")
+        check("two builds share the resource uuid",
+              rp_a["header"]["uuid"], rp_b["header"]["uuid"])
+        check("two builds share the behavior uuid",
+              bp_a["header"]["uuid"], bp_b["header"]["uuid"])
+        check("the pack names the song from the source title",
+              '"My Song"' in songs, True)
+
+        # The length comes from the source audio, never from the addon: an
+        # .mcaddon is a zip, so ffmpeg finds no stream inside it to time.
+        check("the addon itself has no readable duration",
+              core.probe_duration(one, ffmpeg), None)
+        check_close("the source audio carries the duration",
+                    core.probe_duration(source, ffmpeg), 3.0)
+        rows = packs._clean_tracks(
+            [{"slug": "tone", "name": "My Song", "audio": source, "duration": 3.0}]
+        )
+        check("the source duration is carried into the pack rows",
+              rows[0]["duration"], 3.0)
+
+        # ---- a length that cannot be read is a clear error ------------
+        check("a missing file probes to None when lenient",
+              core.probe_duration(work / "ghost.ogg", ffmpeg), None)
+        check_raises(
+            "a missing file raises when strict",
+            lambda: core.probe_duration(work / "ghost.ogg", ffmpeg, strict=True),
+            core.InputError,
+        )
+        check_raises(
+            "a file with no audio raises when strict",
+            lambda: core.probe_duration(one, ffmpeg, strict=True),
+            core.InputError,
+        )
+
+        # ---- a run past its deadline is stopped ------------------------
+        check("timeout is spelled in minutes", core._fmt_timeout(1800), "30 min")
+        check("a short timeout stays in seconds", core._fmt_timeout(45), "45s")
+        slow = [
+            str(ffmpeg), "-y", "-hide_banner", "-nostdin",
+            "-progress", "pipe:1", "-nostats",
+            "-f", "lavfi", "-i", "sine=frequency=440",
+            "-t", "600", "-c:a", "libvorbis", "-b:a", "96k",
+            str(work / "slow.ogg"),
+        ]
+        check_raises(
+            "a conversion past its deadline is stopped",
+            lambda: core.run_ffmpeg(slow, timeout=1.0),
+            core.YT2DiscError,
+        )
+
+    print("== hosted job limits ==")
+    with tempfile.TemporaryDirectory(prefix="yt2disc-limits-") as workdir:
+        registry = jobs.JobRegistry(
+            root=Path(workdir),
+            slots=1,
+            timeout_seconds=60,
+            max_upload_bytes=10,
+        )
+        check("the registry keeps its timeout", registry.timeout_seconds, 60.0)
+        check("the registry keeps its upload cap", registry.max_upload_bytes, 10)
+        check_raises(
+            "an unknown upload type is refused",
+            lambda: registry.submit("notes.txt", io.BytesIO(b"x"), defaults),
+            core.InputError,
+        )
+        check_raises(
+            "an upload over the cap is refused",
+            lambda: registry.submit("song.mp3", io.BytesIO(b"0" * 100), defaults),
+            core.InputError,
+        )
 
     return report()
 

@@ -33,6 +33,9 @@ run above; a browser has no environment to set and needs none of it:
                                 address to listen on (default 127.0.0.1)
     YT2DISC_WEB_DATA            scratch folder (default: the system temp dir)
     YT2DISC_WEB_MAX_UPLOAD_MB   upload cap (default 200)
+    YT2DISC_WEB_JOB_TIMEOUT_MINUTES
+                                stop a conversion that runs too long (default
+                                30; 0 for no limit)
     YT2DISC_WEB_KEEP_MINUTES    how long a scratch folder lives (default 120)
     YT2DISC_FFMPEG              path to ffmpeg, otherwise PATH then bin/
     YT2DISC_WEB_TOKEN           shared key visitors must give (default: off)
@@ -101,6 +104,11 @@ SCRATCH = scratch_root()
 # serves the download link out of that folder.
 KEEP_SECONDS = int_env("YT2DISC_WEB_KEEP_MINUTES", 120, 1, 100000) * 60.0
 MAX_UPLOAD_MB = int_env("YT2DISC_WEB_MAX_UPLOAD_MB", 200, 1, 4096)
+# A ceiling on one conversion, so a stuck decode cannot run for ever on a host
+# that is answering other people too.  0 minutes means no limit.
+JOB_TIMEOUT_SECONDS = (
+    int_env("YT2DISC_WEB_JOB_TIMEOUT_MINUTES", 30, 0, 100000) * 60 or None
+)
 
 
 def sweep(keep=None) -> int:
@@ -244,7 +252,14 @@ def convert_upload(
 
         note(f"source: {source.name} ({core.human_size(size)})")
         progress(0.0, desc="converting")
-        converter.convert(source, destination, options, log=note, progress=report)
+        converter.convert(
+            source,
+            destination,
+            options,
+            log=note,
+            progress=report,
+            timeout=JOB_TIMEOUT_SECONDS,
+        )
 
         # A pack's download is a zip, and ffmpeg cannot read a length back out
         # of one - so its length is taken from the audio it was built from,
@@ -469,6 +484,11 @@ def main(argv=None) -> int:
     print(f"  ffmpeg  : {ffmpeg or 'NOT FOUND (put it in bin/ or on PATH)'}")
     print(f"  scratch : {SCRATCH}  (a folder is kept {KEEP_SECONDS / 60:.0f} min)")
     print(f"  cap     : {MAX_UPLOAD_MB} MB per upload")
+    timeout_minutes = (JOB_TIMEOUT_SECONDS or 0) / 60.0
+    print(
+        "  timeout : "
+        + (f"{timeout_minutes:g} min per conversion" if timeout_minutes else "none")
+    )
     print(f"  key     : {'required' if creds else 'not required'}")
     if ffmpeg is None:
         print("  warning : conversions will fail until ffmpeg is available")

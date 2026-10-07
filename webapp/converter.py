@@ -358,13 +358,24 @@ def check_trim(full, options) -> None:
 
 
 def convert(
-    source, destination, options, log=None, progress=None, ffmpeg=None, title=None
+    source,
+    destination,
+    options,
+    log=None,
+    progress=None,
+    ffmpeg=None,
+    title=None,
+    timeout=None,
 ) -> Path:
     """Convert one file.  Failures quote ffmpeg's own last words.
 
     ``log`` receives every ffmpeg line; ``progress`` receives a 0-100 float.
     ``title`` names the song inside a pack, for a caller whose source file was
     saved under a scratch name of its own (a server does exactly that).
+
+    ``timeout`` is a wall-clock ceiling in seconds for the ffmpeg run itself, so
+    a caller that must not let one conversion tie up a worker for ever (the
+    hosted app) can pass one; ``None``, the default, means no limit.
     """
     source = Path(str(source))
     destination = Path(str(destination))
@@ -376,8 +387,11 @@ def convert(
         raise core.BinaryMissingError("ffmpeg")
 
     # One probe, used twice: to size up the progress bar, and to catch a trim
-    # that points off the end of the file.
-    full = core.probe_duration(source, ffmpeg)
+    # that points off the end of the file.  It is *strict* here, unlike the
+    # player's best-effort read, because a conversion whose length cannot be
+    # measured would hand back a job with no progress and no reported length -
+    # so failing it with a reason is the honest outcome.
+    full = core.probe_duration(source, ffmpeg, strict=True)
     check_trim(full, options)
     total = reported_total(full, options)
 
@@ -404,7 +418,10 @@ def convert(
             progress(min(99.0, max(0.0, seen / total * 100.0)))
 
     code, tail = core.run_ffmpeg(
-        build_command(ffmpeg, source, tmp, options), log=on_line, tail_size=60
+        build_command(ffmpeg, source, tmp, options),
+        log=on_line,
+        tail_size=60,
+        timeout=timeout,
     )
     empty = any(EMPTY_OUTPUT_MARK in line for line in tail)
     if code != 0 or empty or not tmp.is_file() or tmp.stat().st_size <= 44:

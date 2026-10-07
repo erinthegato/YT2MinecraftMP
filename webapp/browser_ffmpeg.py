@@ -315,8 +315,15 @@ def _exec(args, log=None, progress=None, tail_size: int = 40):
     return code, tail
 
 
-def run_ffmpeg(cmd, log=None, progress=None, tail_size: int = 40):
-    """``core.run_ffmpeg``'s job, done by WebAssembly instead of a subprocess."""
+def run_ffmpeg(cmd, log=None, progress=None, tail_size: int = 40, timeout=None):
+    """``core.run_ffmpeg``'s job, done by WebAssembly instead of a subprocess.
+
+    ``timeout`` is accepted and ignored: the WebAssembly call is synchronous and
+    has no process to interrupt, and a browser tab is its own ceiling - closing
+    it stops the conversion.  Taking the argument anyway keeps this seam exactly
+    as wide as ``core``'s, so ``converter.py`` never has to know which it is
+    talking to.
+    """
     cmd = [str(part) for part in cmd]
     if log:
         # The native path logs the command before it runs it; the browser should
@@ -331,16 +338,30 @@ def run_ffmpeg(cmd, log=None, progress=None, tail_size: int = 40):
     return code, tail
 
 
-def probe_duration(path, ffmpeg=None):
-    """``core.probe_duration``'s job: the Duration line out of ffmpeg's banner."""
+def probe_duration(path, ffmpeg=None, strict: bool = False):
+    """``core.probe_duration``'s job: the Duration line out of ffmpeg's banner.
+
+    ``strict=True`` mirrors the native version: rather than returning ``None``
+    when the length cannot be read, it raises ``core.InputError`` naming the
+    file - so the same conversion that fails with a reason on a server fails
+    with the same reason in the browser.
+    """
     core = _core()
+    name = Path(str(path)).name
     lines: list = []
     try:
         _exec(["-hide_banner", "-i", _stage(path)], log=lines.append)
     except Exception:
+        if strict:
+            raise core.InputError(f"could not read the length of '{name}'") from None
         return None  # best effort, exactly like the native version
     match = core._DURATION_RE.search("\n".join(lines))
     if not match:
+        if strict:
+            raise core.InputError(
+                f"could not read the length of '{name}' - it may be damaged, "
+                f"or hold no audio"
+            )
         return None
     hours, minutes, seconds = match.groups()
     return int(hours) * 3600 + int(minutes) * 60 + float(seconds)

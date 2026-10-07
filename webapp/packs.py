@@ -77,9 +77,18 @@ SOUND_CATEGORY = "music"
 # Small helpers
 # --------------------------------------------------------------------------
 
-def _new_uuid() -> str:
-    """A fresh v4 UUID, as the manifest insists on a string."""
-    return str(uuid.uuid4())
+# A pack's UUIDs have to be *stable*: the game keys a pack by that number, so
+# two builds that differ only in random UUIDs are two different packs - an
+# update installs *beside* the old one instead of over it.  A version-5 UUID
+# hashed from the namespace and the pack's role is the same on every build, on
+# every machine and in the browser, which is what an addon actually wants.
+_UUID_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_DNS, f"{NAMESPACE}.minecraft.addon")
+
+
+def _stable_uuid(role: str, pack_name: str = DEFAULT_PACK_NAME) -> str:
+    """A deterministic UUID for one named part of the pack (header, module...)."""
+    seed = f"{NAMESPACE}:{core.slugify(pack_name)}:{role}"
+    return str(uuid.uuid5(_UUID_NAMESPACE, seed))
 
 
 def _js_string(value) -> str:
@@ -90,10 +99,14 @@ def _js_string(value) -> str:
     return '"' + text + '"'
 
 
-def _folder_name(pack_name: str, suffix: str) -> str:
-    """A tidy, filesystem-safe name for one half of the addon."""
+def pack_folder_names(pack_name: str = DEFAULT_PACK_NAME) -> tuple[str, str]:
+    """The two folder names inside the addon: ``(<name>_RP, <name>_BP)``.
+
+    Public so the tests and the docs can name the same folders the builder
+    does, instead of each restating the ``_RP``/``_BP`` spelling.
+    """
     stem = core.slugify(pack_name) or NAMESPACE
-    return f"{stem}_{suffix}"
+    return f"{stem}_RP", f"{stem}_BP"
 
 
 # --------------------------------------------------------------------------
@@ -181,7 +194,7 @@ def resource_manifest(pack_name: str, description: str) -> dict:
         "header": {
             "name": pack_name,
             "description": description,
-            "uuid": _new_uuid(),
+            "uuid": _stable_uuid("rp/header", pack_name),
             "version": list(PACK_VERSION),
             "min_engine_version": list(MIN_ENGINE_VERSION),
         },
@@ -189,7 +202,7 @@ def resource_manifest(pack_name: str, description: str) -> dict:
             {
                 "type": "resources",
                 "description": f"{pack_name} sounds",
-                "uuid": _new_uuid(),
+                "uuid": _stable_uuid("rp/module", pack_name),
                 "version": list(PACK_VERSION),
             }
         ],
@@ -208,7 +221,7 @@ def behavior_manifest(pack_name: str, description: str) -> dict:
         "header": {
             "name": f"{pack_name} (behavior)",
             "description": description,
-            "uuid": _new_uuid(),
+            "uuid": _stable_uuid("bp/header", pack_name),
             "version": list(PACK_VERSION),
             "min_engine_version": list(MIN_ENGINE_VERSION),
         },
@@ -216,7 +229,7 @@ def behavior_manifest(pack_name: str, description: str) -> dict:
             {
                 "type": "data",
                 "description": f"{pack_name} behavior",
-                "uuid": _new_uuid(),
+                "uuid": _stable_uuid("bp/data", pack_name),
                 "version": list(PACK_VERSION),
             },
             {
@@ -224,7 +237,7 @@ def behavior_manifest(pack_name: str, description: str) -> dict:
                 "language": "javascript",
                 "entry": "scripts/main.js",
                 "description": f"{pack_name} menu script",
-                "uuid": _new_uuid(),
+                "uuid": _stable_uuid("bp/script", pack_name),
                 "version": list(PACK_VERSION),
             },
         ],
@@ -462,8 +475,7 @@ def build_addon(
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     icon = pack_icon()
-    rp = _folder_name(pack_name, "RP")
-    bp = _folder_name(pack_name, "BP")
+    rp, bp = pack_folder_names(pack_name)
 
     # Written beside the target and moved into place, so a half-written addon
     # can never be handed to a download link.

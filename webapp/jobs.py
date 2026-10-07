@@ -86,13 +86,30 @@ class Job:
 class JobRegistry:
     """Owns the jobs, the worker threads and the scratch disk space."""
 
-    def __init__(self, root=None, slots: int = 2, keep_seconds: float = 7200.0):
+    def __init__(
+        self,
+        root=None,
+        slots: int = 2,
+        keep_seconds: float = 7200.0,
+        timeout_seconds: float | None = None,
+        max_upload_bytes: int = 0,
+    ):
         self.root = Path(str(root)) if root else Path(tempfile.gettempdir()) / "yt2disc-web"
         self.root.mkdir(parents=True, exist_ok=True)
         # At most `slots` conversions run at once, so one visitor cannot pin
         # every core on the host.
         self.slots = threading.BoundedSemaphore(max(1, int(slots)))
         self.keep_seconds = float(keep_seconds)
+        # A ceiling on a single conversion, so a stuck decode cannot hold a
+        # worker slot for ever.  ``None`` - the default - means no limit, which
+        # is what a self-hosted run on your own machine wants.
+        self.timeout_seconds = (
+            float(timeout_seconds) if timeout_seconds and timeout_seconds > 0 else None
+        )
+        # ``0`` means "whatever the front-end already enforces".  A positive
+        # number re-checks the saved upload here, so a front-end that sets no
+        # cap of its own still has one, and the refusal carries a reason.
+        self.max_upload_bytes = max(0, int(max_upload_bytes or 0))
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
 
@@ -118,9 +135,16 @@ class JobRegistry:
 
         with job.source_path.open("wb") as handle:
             shutil.copyfileobj(stream, handle, length=1024 * 1024)
-        if job.source_path.stat().st_size <= 0:
+        size = job.source_path.stat().st_size
+        if size <= 0:
             shutil.rmtree(directory, ignore_errors=True)
             raise core.InputError("the upload arrived empty")
+        if self.max_upload_bytes and size > self.max_upload_bytes:
+            shutil.rmtree(directory, ignore_errors=True)
+            raise core.InputError(
+                f"that upload is {core.human_size(size)}, over the "
+                f"{core.human_size(self.max_upload_bytes)} this converter accepts"
+            )
 
         job.output_path = directory / job.output_name
         with self._lock:
@@ -155,6 +179,9 @@ class JobRegistry:
                     # The upload was saved under a scratch name, so the real
                     # one is handed over for a pack to name its song with.
                     title=job.source_name,
+                    # And the run gets a deadline: a conversion that never ends
+                    # is a slot nobody else can have.
+                    timeout=self.timeout_seconds,
                 )
             self._describe(job)
         except core.YT2DiscError as exc:

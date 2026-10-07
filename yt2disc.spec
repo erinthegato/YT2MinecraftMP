@@ -15,17 +15,20 @@ executables instead of a one-folder build.
 """
 
 import os
+import sys
 
 ROOT = os.path.abspath(SPECPATH)
+if ROOT not in sys.path:  # build_layout.py lives beside this file
+    sys.path.insert(0, ROOT)
+
+import build_layout as layout  # the one place the build's paths live
+
 ONEFILE = os.environ.get("YT2DISC_ONEFILE", "").strip() not in ("", "0")
 
-ICON = os.path.join(ROOT, "assets", "yt2disc.ico")
-if not os.path.isfile(ICON):
-    ICON = None  # not generated yet - PyInstaller falls back to its default
-
-VERSION_FILE = os.path.join(ROOT, "assets", "version_info.txt")
-if not os.path.isfile(VERSION_FILE):
-    VERSION_FILE = None
+# Where the icon and the version info come from is one decision, made in
+# build_layout and shared with build_exe.py.
+ICON = str(layout.ICON) if os.path.isfile(layout.ICON) else None
+VERSION_FILE = str(layout.VERSION_FILE) if os.path.isfile(layout.VERSION_FILE) else None
 
 # The app reads nothing from its own bundle: bin/, discs/ and the JSON state all
 # live next to the executable, so the folder stays portable and writable, and
@@ -33,7 +36,7 @@ if not os.path.isfile(VERSION_FILE):
 datas = []
 
 # gui is imported lazily inside main(), so ask for these explicitly.
-hidden = ["cli", "core", "gui"]
+hidden = list(layout.HIDDEN_IMPORTS)
 
 a = Analysis(
     [os.path.join(ROOT, "main.py")],
@@ -67,10 +70,22 @@ common = dict(
 
 if ONEFILE:
     exe_gui = EXE(
-        pyz, a.scripts, a.binaries, a.datas, name="yt2disc", console=False, **common
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.datas,
+        name=layout.GUI_NAME,
+        console=False,
+        **common,
     )
     exe_cli = EXE(
-        pyz, a.scripts, a.binaries, a.datas, name="yt2disc-cli", console=True, **common
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.datas,
+        name=layout.CLI_NAME,
+        console=True,
+        **common,
     )
 else:
     exe_gui = EXE(
@@ -78,7 +93,7 @@ else:
         a.scripts,
         [],
         exclude_binaries=True,
-        name="yt2disc",
+        name=layout.GUI_NAME,
         console=False,
         **common,
     )
@@ -87,7 +102,7 @@ else:
         a.scripts,
         [],
         exclude_binaries=True,
-        name="yt2disc-cli",
+        name=layout.CLI_NAME,
         console=True,
         **common,
     )
@@ -99,5 +114,5 @@ else:
         strip=False,
         upx=False,
         upx_exclude=[],
-        name="yt2disc",
+        name=layout.COLLECT_NAME,
     )

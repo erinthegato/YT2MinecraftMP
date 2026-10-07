@@ -25,19 +25,25 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SPEC = HERE / "yt2disc.spec"
+if str(HERE) not in sys.path:  # build_layout.py sits beside this file
+    sys.path.insert(0, str(HERE))
 
-WORK = HERE / "_pyi" / "work"
-DIST = HERE / "dist"
-APP = DIST / "yt2disc"
+import build_layout as layout  # noqa: E402  (the one place the paths live)
 
-ASSETS = HERE / "assets"
-ICON = ASSETS / "yt2disc.ico"
-VERSION_FILE = ASSETS / "version_info.txt"
+# Every path and name the build needs comes from build_layout, so this file and
+# yt2disc.spec can never disagree about where a build lands.
+SPEC = layout.SPEC
+WORK = layout.WORK
+DIST = layout.DIST
+APP = layout.APP
 
-EXE_SUFFIX = ".exe" if os.name == "nt" else ""
-GUI_EXE = APP / f"yt2disc{EXE_SUFFIX}"
-CLI_EXE = APP / f"yt2disc-cli{EXE_SUFFIX}"
+ASSETS = layout.ASSETS
+ICON = layout.ICON
+VERSION_FILE = layout.VERSION_FILE
+
+EXE_SUFFIX = layout.EXE_SUFFIX
+GUI_EXE = APP / f"{layout.GUI_NAME}{EXE_SUFFIX}"
+CLI_EXE = APP / f"{layout.CLI_NAME}{EXE_SUFFIX}"
 
 
 def log(message: str = "") -> None:
@@ -156,7 +162,7 @@ def assemble() -> None:
     helper = HERE / "bin" / "README.txt"
     if helper.is_file():
         shutil.copy2(helper, APP / "bin" / "README.txt")
-    readme = HERE / "README.md"
+    readme = layout.README
     if readme.is_file():
         shutil.copy2(readme, APP / "README.md")
     # A state.json copied over from an earlier build must not decide this run's

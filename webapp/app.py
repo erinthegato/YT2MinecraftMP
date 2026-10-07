@@ -15,6 +15,9 @@ Environment variables, all optional:
     YT2DISC_WEB_DATA           scratch folder (default: the system temp dir)
     YT2DISC_WEB_MAX_UPLOAD_MB  upload cap (default 200)
     YT2DISC_WEB_SLOTS          conversions at once (default 2)
+    YT2DISC_WEB_JOB_TIMEOUT_MINUTES
+                               stop a conversion that runs too long (default
+                               30; 0 for no limit)
     YT2DISC_WEB_KEEP_MINUTES   how long a finished download stays (default 120)
     YT2DISC_FFMPEG             path to ffmpeg, otherwise PATH then bin/
     YT2DISC_WEB_TOKEN          shared key visitors must give (default: off)
@@ -71,10 +74,16 @@ def access_key() -> str:
 
 def make_registry() -> JobRegistry:
     """The job store, sized from the environment."""
+    # 0 minutes means "no ceiling", which is what the ``or None`` is for: a host
+    # whose files are all short can cap a runaway conversion, and one that is
+    # not sure can leave it unlimited.
+    timeout = int_env("YT2DISC_WEB_JOB_TIMEOUT_MINUTES", 30, 0, 100000) * 60 or None
     return JobRegistry(
         root=os.environ.get("YT2DISC_WEB_DATA") or None,
         slots=int_env("YT2DISC_WEB_SLOTS", 2, 1, 16),
         keep_seconds=int_env("YT2DISC_WEB_KEEP_MINUTES", 120, 1, 100000) * 60.0,
+        timeout_seconds=timeout,
+        max_upload_bytes=int_env("YT2DISC_WEB_MAX_UPLOAD_MB", 200, 1, 4096) * MEGABYTE,
     )
 
 
@@ -292,6 +301,11 @@ def main() -> int:
     print(f"  ffmpeg  : {ffmpeg or 'NOT FOUND (put it in bin/ or on PATH)'}")
     print(f"  scratch : {jobs.root}")
     print(f"  cap     : {app.config['MAX_CONTENT_LENGTH'] // MEGABYTE} MB per upload")
+    timeout_minutes = (jobs.timeout_seconds or 0) / 60.0
+    print(
+        "  timeout : "
+        + (f"{timeout_minutes:g} min per conversion" if timeout_minutes else "none")
+    )
     print(f"  key     : {'required' if app.config['YT2DISC_WEB_KEY'] else 'not required'}")
     if ffmpeg is None:
         print("  warning : conversions will fail until ffmpeg is available")

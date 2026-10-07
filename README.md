@@ -72,6 +72,19 @@ is a custom command, which - like the form API it opens - is stable, so the
 world needs no experiment switched on and works offline; `/scriptevent
 yt2disc:menu` opens the same menu on a game too old for custom commands.
 
+The addon needs Minecraft **1.21 or newer** - the `min_engine_version` in both
+manifests is `1.21.0` - because `/yt2disc:music` is a *custom command*, a stable
+API from that release on. On anything older, or if the command is refused, the
+same menu still opens through the script-event fallback, which needs no command
+list at all:
+
+```
+/scriptevent yt2disc:menu
+```
+
+Both entry points run the same callback, and neither asks for cheats or an
+experiment, so an ordinary world is enough.
+
 ## Deploy the converter
 
 Hugging Face Spaces is the completely free home for the converter: a Space needs
@@ -188,6 +201,10 @@ a change. `app.py` drives the same engine, so `_selftest.py` covers the half of
 the Gradio page that can fail on its own; `_webcheck.py` covers the Flask
 front-end instead, because the page does not use it. For the page itself, `py -3 app.py`
 and one conversion is the check.
+
+Both are what `.github/workflows/ci.yml` runs on every push - alongside the
+end-to-end suite - so a change that breaks either is caught without anyone
+remembering to look.
 
 Nothing here runs in a browser, so the browser half has no committed test: the
 page is Pyodide and WebAssembly, and neither exists outside one. What it shares
