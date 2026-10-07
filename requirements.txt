@@ -5,8 +5,8 @@
 # ffmpeg does all the real work and is not a Python package at all, so it comes
 # from packages.txt beside this file instead.
 #
-# A Hugging Face Space reads this file (its Gradio SDK installs whatever is
-# listed here) and local use reads it too:
+# A Gradio-SDK or Docker Space reads this file - the static Space the README
+# describes installs nothing at all.  Local use reads it too:
 #
 #     py -3 -m pip install -r requirements.txt
 #     py -3 app.py                       # http://127.0.0.1:7860

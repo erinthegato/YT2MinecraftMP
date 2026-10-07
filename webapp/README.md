@@ -98,6 +98,12 @@ Uploads may be audio or video; from a video only the sound is kept. A trim that
 points past the end of the file is refused with a readable message rather than
 handed back as a broken file.
 
+The addon needs Minecraft **1.21 or newer** (both manifests say
+`min_engine_version` `1.21.0`): `/yt2disc:music` is a custom command, a stable
+API from that release on. On an older game - or if the command is refused - the
+same menu opens with `/scriptevent yt2disc:menu`, which needs no command list.
+Both routes run the same callback, so neither needs cheats or an experiment.
+
 ## Environment variables
 
 The Gradio page at the repository root reads the same names, plus the two that
@@ -113,6 +119,7 @@ queue allows one conversion at a time, so the page ignores it.
 | `YT2DISC_WEB_DATA` | the system temp folder | where uploads and results are written |
 | `YT2DISC_WEB_MAX_UPLOAD_MB` | `200` | upload ceiling; above it the file is refused with a reason |
 | `YT2DISC_WEB_SLOTS` | `2` | conversions allowed to run at the same time (Flask front-end only) |
+| `YT2DISC_WEB_JOB_TIMEOUT_MINUTES` | `30` | stop a conversion that runs longer than this; `0` means no limit |
 | `YT2DISC_WEB_KEEP_MINUTES` | `120` | how long a finished download stays available |
 | `YT2DISC_FFMPEG` | unset | path to the ffmpeg binary |
 | `YT2DISC_WEB_TOKEN` | unset | shared key every visitor must give; unset means wide open |
@@ -123,10 +130,10 @@ used here: this half never reads a library or a Minecraft folder.
 ## Deploying
 
 The free host this repository is set up for is
-[Hugging Face Spaces](https://huggingface.co/docs/hub/spaces-sdks-gradio), and it
-runs the **Gradio** page at the repository root rather than the Flask server in
-this folder. Create a Space with the **Gradio** SDK, add it as a second remote
-of this repository, and push:
+[Hugging Face Spaces](https://huggingface.co/docs/hub/spaces-sdks-static), and it
+serves the **Static** page at the repository root rather than the Flask server in
+this folder. Create a Space with the **Static** SDK, add it as a second remote of
+this repository, and push:
 
 ```powershell
 git remote add space https://huggingface.co/spaces/<user>/yt2disc-converter
@@ -134,22 +141,31 @@ git push --force space HEAD:main
 ```
 
 What Hugging Face reads is the YAML block at the top of the repository's
-`README.md`: `sdk: gradio` with `app_file: app.py` starts that page, the root
-`requirements.txt` is what it imports, and the root `packages.txt` is where
-ffmpeg comes from. Nothing is built - not locally, not on the host - which is
-why the free CPU tier is enough. `YT2DISC_WEB_TOKEN` goes in the Space's
-*Settings -> Variables and secrets* rather than in a file, and the address to
-open is `https://<user>-yt2disc-converter.hf.space/`. Gradio asks for that key
-as HTTP basic auth, so it never reaches the address bar.
+`README.md`: `sdk: static` with `app_file: index.html` hands the repository to the
+browser as plain files, and `index.html` is the page it opens. That page loads
+Gradio Lite - Gradio itself, running in the browser on Pyodide - and the same page
+fetches `app.py`, `core.py` and everything under `webapp/` off the Space as it
+starts, which is why the files in this folder ship too. Nothing is built and
+nothing runs on the host: no Python process, no image, no server-side ffmpeg.
+Conversion happens in the visitor's browser through `webapp/browser_ffmpeg.py` and
+ffmpeg.wasm, so neither the root `requirements.txt` nor `packages.txt` is
+installed - the first visit is the slow one, pulling about thirty megabytes of
+Pyodide and ffmpeg.wasm into the browser cache.
 
-Free Spaces sleep after 48 idle hours and wake on the next visit. A conversion
-is unaffected, because the page holds its connection open while ffmpeg runs and
-that connection is traffic.
+There is no shared key on this deployment, because there is nothing on the host
+for one to protect: the job runs on the visitor's machine against the visitor's own
+file. `YT2DISC_WEB_TOKEN` is read by the server halves only - `python app.py` on a
+box you are exposing, and the Flask front-end below - so the Space needs no secret
+set at all and the address to open is plain
+`https://<user>-yt2disc-converter.hf.space/`.
+
+A Static Space has no process to sleep and no conversion left running on the host,
+so the page is simply there when someone opens it.
 
 ### Deploying *this* Flask server instead
 
 Everything below is about the Flask front-end in this folder. It drives the same
-engine, so it converts identically, and it brings the two things the Gradio page
+engine, so it converts identically, and it brings the two things the Static page
 does not: a `/healthz` endpoint a platform can poll, and a `?key=` lock that
 works without a browser prompt.
 

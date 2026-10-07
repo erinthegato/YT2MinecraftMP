@@ -8,9 +8,10 @@
 #
 # The point of this image is one thing: put ffmpeg on PATH, which is exactly
 # where core.find_binary() looks first outside Windows.  The Hugging Face Space
-# this repository is set up for runs the Gradio page instead - `sdk: gradio` and
-# `app_file: app.py` in the block at the top of README.md, with ffmpeg from
-# packages.txt - so that deployment never builds this image at all.
+# this repository is set up for serves the Static page instead - `sdk: static`
+# and `app_file: index.html` in the block at the top of README.md, with ffmpeg
+# arriving as ffmpeg.wasm in the browser - so that deployment never builds this
+# image at all.
 FROM python:3.13-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 \
